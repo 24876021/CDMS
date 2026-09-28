@@ -104,11 +104,21 @@ public class PatientController {
     @PreAuthorize("hasAuthority('resource:all')||hasAuthority('resource:set')")
     @PostMapping("/user")
     @ApiOperation("插入患者")
-    public Result2 addUser(@RequestBody Patient patient){
-        if (patientService.save(patient)){
-            return Result2.success("插入患者成功！");
+    public Result2 addUser(@RequestBody Patient patient) {
+        String idCard = patient.getIdCardNumber();
+        if (idCard == null || idCard.trim().isEmpty()) {
+            return Result2.error("身份证不能为空");
         }
-        else return Result2.error("插入患者失败");
+
+        Patient exist = patientService.getByIdCardNumber(idCard);
+        if (exist != null) {
+            return Result2.error("该身份证已存在");
+        }
+
+        if (patientService.save(patient)) {
+            return Result2.success("插入成功");
+        }
+        return Result2.error("插入失败");
     }
 
     /**
@@ -120,10 +130,34 @@ public class PatientController {
     @PutMapping("/user")
     @ApiOperation(("修改患者"))
     public Result2 updateUser(@RequestBody Patient patient){
-        if (patientService.updateById(patient)){
-            return Result2.success("更新患者成功！");
+
+        // 1. 身份证判空
+        String idCardNumber = patient.getIdCardNumber();
+        if (idCardNumber == null || idCardNumber.trim().isEmpty()) {
+            return Result2.error("身份证号不能为空");
         }
-        else return Result2.error("更新患者失败");
+
+        // 2. 查询是否已存在这个身份证
+        Patient existPatient = patientService.getByIdCardNumber(idCardNumber);
+
+        // 3. 关键：如果存在，并且不是当前患者自己 → 拦截
+        if (existPatient != null) {
+            // 重点：int 类型必须用 == 比较
+            if (existPatient.getPatientId() != patient.getPatientId()) {
+                return Result2.error("该身份证号已被其他患者使用！");
+            }
+        }
+
+        // 4. 校验通过才执行更新
+        try {
+            if (patientService.updateById(patient)){
+                return Result2.success("更新患者成功！");
+            } else {
+                return Result2.error("更新失败");
+            }
+        } catch (Exception e) {
+            return Result2.error("该身份证号已被占用");
+        }
     }
 
     /**

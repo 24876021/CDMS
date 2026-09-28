@@ -64,6 +64,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
       "/logout",        //登出
       "/captcha",        //验证码
       "/sysUser/register", //注册
+      "/sysUser/lockUserByErrorPwd",//锁定
+      "/ws/**",            //放行 WebSocket
       "/swagger-ui.html",
       "/webjars/**",
       "/swagger-resources/**",

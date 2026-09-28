@@ -5,6 +5,7 @@ import com.example.userlogin.constant.RsaProperties;
 import com.example.userlogin.model.*;
 import com.example.userlogin.handler.password.PasswordEncoder;
 import com.example.userlogin.service.*;
+import com.example.userlogin.service.Impl.WebSocketServerImpl;
 import com.example.userlogin.utils.RSAUtils;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -130,6 +131,10 @@ public class UserController {
         // 如果 roleIds 为空，删除 userId 对应的所有角色记录
         if (roleIds == null || roleIds.isEmpty()) {
             userRoleService.removeById(userId);
+
+            // 推送刷新
+            WebSocketServerImpl.sendToUser(userId, "refreshPermissions");
+
             return Result2.success("删除角色所有权限成功！");
         }
 
@@ -152,6 +157,9 @@ public class UserController {
                 userRoleService.save(userRole);
             }
         }
+
+        // ====================== 推送权限刷新 ======================
+        WebSocketServerImpl.sendToUser(userId, "refreshPermissions");
 
         return Result2.success("更改用户角色成功！");
     }
@@ -199,6 +207,31 @@ public class UserController {
             return Result2.success("更新状态成功！");
         }
         else return Result2.error("更新状态失败");
+    }
+
+    // ====================== 登录输错5次自动锁定 ======================
+    @PostMapping("/lockUserByErrorPwd")
+    @ApiOperation("密码输错5次自动锁定用户")
+    public Result2 lockUserByErrorPwd(@RequestBody SysUser sysUser) {
+
+        // 从请求体获取 account
+        String account = sysUser.getAccount();
+
+        // 根据账号查询用户
+        SysUser user = sysUserService.getByAccount(account);
+        if (user == null) {
+            return Result2.error("用户不存在");
+        }
+
+        // 直接锁定
+        user.setStatus(false);
+
+        // 更新
+        if (sysUserService.updateById(user)) {
+            return Result2.success("账号已自动锁定");
+        } else {
+            return Result2.error("锁定失败");
+        }
     }
 
 }

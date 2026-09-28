@@ -5,8 +5,10 @@ import com.example.userlogin.model.Result2;
 import com.example.userlogin.model.Role;
 import com.example.userlogin.model.RoleAuthority;
 import com.example.userlogin.service.AuthorityService;
+import com.example.userlogin.service.Impl.WebSocketServerImpl;
 import com.example.userlogin.service.RoleAuthorityService;
 import com.example.userlogin.service.RoleService;
+import com.example.userlogin.service.UserRoleService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,8 @@ public class RoleController {
     AuthorityService authorityService;
     @Autowired
     RoleAuthorityService roleAuthorityService;
+    @Autowired
+    private UserRoleService userRoleService;
 
     @PreAuthorize("hasAuthority('resource:all')||hasAuthority('resource:get')")
     @GetMapping("/AllRoles")
@@ -63,9 +67,17 @@ public class RoleController {
     @PutMapping("/updateRoleAuthority")
     @ApiOperation("更改角色权限")
     public Result2 updateRoleAuthority(@RequestParam Long roleId, @RequestParam List<Long> authorityIds) {
+
         // 如果 authorityIds 为空，删除 roleId 对应的所有权限记录
         if (authorityIds == null || authorityIds.isEmpty()) {
             roleAuthorityService.removeById(roleId);
+
+            // 👇 新增：清空权限时也推送刷新
+            List<Long> userIds = userRoleService.getUserIdsByRoleId(roleId);
+            for (Long userId : userIds) {
+                WebSocketServerImpl.sendToUser(userId, "refreshPermissions");
+            }
+
             return Result2.success("删除角色所有权限成功！");
         }
 
@@ -89,6 +101,12 @@ public class RoleController {
             }
         }
 
+        // ====================== 新增：推送刷新给拥有该角色的所有用户 ======================
+        List<Long> userIds = userRoleService.getUserIdsByRoleId(roleId);
+        for (Long userId : userIds) {
+            WebSocketServerImpl.sendToUser(userId, "refreshPermissions");
+        }
+
         return Result2.success("更改角色权限成功！");
     }
     @PreAuthorize("hasAuthority('resource:all')||hasAuthority('resource:set')")
@@ -109,5 +127,11 @@ public class RoleController {
         } else {
             return Result2.error("删除角色失败！");
         }
+    }
+    @GetMapping("/AuthoritiesByUserId")
+    public Result2 getAuthoritiesByUserId(@RequestParam Long userId) {
+        List<Long> roleIds = userRoleService.getRolesByUserId(userId);
+        List<Long> authIds = roleAuthorityService.getAuthoritysByRoleIds(roleIds);
+        return Result2.success(authIds);
     }
 }

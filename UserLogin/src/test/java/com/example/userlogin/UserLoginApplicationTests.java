@@ -7,7 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 /**
  * 测试类适配MySQL/SQLite自动降级逻辑
  */
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class UserLoginApplicationTests { // 修正类名拼写错误
 
     // 静态代码块初始化数据库（使用新的降级逻辑）

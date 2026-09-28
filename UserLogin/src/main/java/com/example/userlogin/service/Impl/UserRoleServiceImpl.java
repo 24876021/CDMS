@@ -44,5 +44,15 @@ public class UserRoleServiceImpl extends ServiceImpl<UserRoleMapper, UserRole> i
         // 执行删除操作
         return userRoleMapper.delete(queryWrapper);
     }
+
+    @Override
+    public List<Long> getUserIdsByRoleId(Long roleId) {
+        QueryWrapper<UserRole> queryWrapper = Wrappers.query();
+        queryWrapper.eq("role_id", roleId);
+        List<UserRole> userRoles = userRoleMapper.selectList(queryWrapper);
+        return userRoles.stream()
+                .map(UserRole::getUserId)
+                .collect(Collectors.toList());
+    }
 }
 

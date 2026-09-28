@@ -46,46 +46,39 @@ export default {
   directives: {
     'password-tooltip': {
       inserted(el) {
-        // 找到密码输入框的原生input元素和眼睛图标
-        const inputEl = el.querySelector('input');
-        const iconEl = el.querySelector('.el-input__icon');
+        // 持续监听，防止DOM重建后失效
+        const observer = new MutationObserver(() => {
+          const input = el.querySelector('input');
+          const icon = el.querySelector('.el-input__icon');
+          if (input && icon) {
+            bindTooltip(input, icon);
+          }
+        });
 
-        if (!inputEl || !iconEl) {
-          // 兜底：监听DOM变化，确保找到元素
-          const observer = new MutationObserver(() => {
-            const newInput = el.querySelector('input');
-            const newIcon = el.querySelector('.el-input__icon');
-            if (newInput && newIcon) {
-              bindTooltip(newInput, newIcon);
-              observer.disconnect();
-            }
-          });
-          observer.observe(el, { childList: true, subtree: true });
-        } else {
-          bindTooltip(inputEl, iconEl);
-        }
+        observer.observe(el, {
+          childList: true,
+          subtree: true,
+          attributes: true
+        });
 
-        // 核心：绑定提示文字逻辑
         function bindTooltip(input, icon) {
-          // 初始化提示文字
+          // 避免重复绑定
+          if (icon._tooltipBound) return;
+          icon._tooltipBound = true;
+
           updateTooltip();
 
-          // 监听input的type属性变化（Element UI切换显示/隐藏时会改这个）
-          const inputObserver = new MutationObserver(() => {
-            updateTooltip();
-          });
-          inputObserver.observe(input, { attributes: true, attributeFilter: ['type'] });
+          // 监听输入框类型变化
+          const inputObs = new MutationObserver(updateTooltip);
+          inputObs.observe(input, { attributes: true, attributeFilter: ['type'] });
 
-          // 监听图标的鼠标移入事件（确保hover时实时更新）
           icon.addEventListener('mouseenter', updateTooltip);
+          icon.style.cursor = 'pointer';
+          icon.style.zIndex = 999;
 
-          // 更新提示文字的核心函数
           function updateTooltip() {
-            // 判断依据：input的type是password → 密码隐藏；是text → 密码显示
             const isHidden = input.type === 'password';
             icon.title = isHidden ? '显示密码' : '隐藏密码';
-            icon.style.cursor = 'pointer';
-            icon.style.zIndex = 999;
           }
         }
       }
@@ -168,6 +161,11 @@ export default {
   justify-content: center; /*容器内元素在主轴上居中*/
   align-items: center; /*容器内元素在交叉轴(与主轴垂直的轴)上居中*/
 
+  /*容器大小*/
+  width: 99vw;
+  height: 99vh;
+  position: fixed;
+
   background-image: url("@/assets/444.jpg");
   background-size: 100% 100%; /*图片高宽100%填充容器*/
   background-attachment: fixed; /*固定背景*/
@@ -176,7 +174,7 @@ export default {
     border-radius: 15px; /*设置外边框圆角*/
     margin: 100px auto; /*外边距*/
     width: 350px; /*宽度*/
-    padding: 20px 20px 35px 20px; /*上右下左内边距*/
+    padding: 20px 50px 35px 50px; /*上右下左内边距*/
     background: inherit; /*继承父容器背景*/
     border: 1px solid #eaeaea; /*边框粗细,实线,颜色*/
     box-shadow: inset 0 0 0 3000px rgba(255, 255, 255, 0.87);/*box-shadow: rgba(0, 0, 0, 0.1) 0px 15px 30px;*/
