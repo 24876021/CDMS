@@ -1,0 +1,56 @@
+# ================================
+# 高校实验室管理系统 .gitignore
+# 说明：本文件作用于所在目录及其所有子目录，
+#       前端目录内已有同名文件时以两者并集为准
+# ================================
+
+# ---------- Java / Maven ----------
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+mvnw.cmd
+.mvn/timing.properties
+
+# ---------- Node / Vite ----------
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.eslintcache
+
+# ---------- 运行时产物 ----------
+logs/
+*.log
+uploads/
+!uploads/.gitkeep
+
+# ---------- IDE ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.vs/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ---------- 操作系统 ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+nul
+
+# ---------- Office 临时/备份文件 ----------
+~$*
+*.bak
+*.bak_*
+*.tmp

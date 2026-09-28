@@ -1,0 +1,34 @@
+server:
+ port: 8082
+ #address: 192.168.93.11
+
+spring:
+ datasource:
+  type: com.alibaba.druid.pool.DruidDataSource
+  username: root
+  password: /*你的数据库密码*/
+  url: jdbc:mysql://localhost:3306/community_diagnosis_db?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
+  hikari:
+   connection-test-query: SELECT 1
+   max-lifetime: 120000
+   maximum-pool-size: 200
+   minimum-idle: 5
+   connection-timeout: 30000
+   idle-timeout: 600000
+   pool-name: webPool
+ redis:
+    host: 127.0.0.1
+    port: 6379
+ mvc:
+  path match:
+   matching-strategy: ant-path-matcher
+
+#设置jwt响应头名、有效时间、HS512算法签名密钥
+shuangtian:
+ jwt:
+  header: Authorization
+  expire: 604800 # 7天，s为单位
+  secret: abcdefghabcdefghabcdefghabcdefgh
+
+
+
