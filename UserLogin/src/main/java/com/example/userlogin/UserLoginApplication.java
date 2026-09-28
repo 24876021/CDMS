@@ -13,8 +13,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class UserLoginApplication {
     public static void main(String[] args) {
-        // 第一步：先创建业务库（无库则建，有库则跳过）
-        DatabaseInitializer.createDatabaseIfNotExists();//本地测试用，手动建库的话可以将这行代码和测试类中的static代码块和DatabaseInitializer.java一起删除掉
+        // 初始化数据库（优先MySQL，失败则降级到SQLite）
+        DatabaseInitializer.initDatabase();//本地测试用，手动建库的话可以将这行代码和测试类中的static代码块和DatabaseInitializer.java一起删除掉
         // 第二步：再启动 Spring Boot 应用
         SpringApplication.run(UserLoginApplication.class, args);
     }

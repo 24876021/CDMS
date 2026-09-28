@@ -1,49 +1,68 @@
 server:
  port: 8082
- #address: 192.168.93.11 //前端在局域网内其它的设备上运行时
+ # address: 192.168.93.11 # 前端在局域网内其它的设备上运行时启用
 
-# 建库配置
+# 建库配置（自定义节点，供DatabaseInitializer使用）
 database:
  init:
-  # 建库名，同时是业务库名（有则使用，无则创建）；若指定现有的数据库，则其它建库配置可以无视
+  # 数据库名称（MySQL/SQLite共用）
   name: community_diagnosis_db
-  # 仅连接MySQL服务器，不指定具体库
-  temp-url: jdbc:mysql://localhost:3306/?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
-  # 该账户需要有建库权限
+  # MySQL临时连接URL（仅用于创建数据库）
+  temp-url: jdbc:mysql://localhost:3306/?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+  # MySQL建库账户（需有建库权限）
   username: root
   password: /*你的数据库密码*/
+  # SQLite专属配置
+  sqlite:
+   # SQLite数据库文件路径（指定存放目录）
+   path: ./data/${database.init.name}.db
+   # SQLite初始化脚本路径
+   schema-location: classpath:sql/schema-tables-sqlite.sql
+  # 新增：预解析后的SQLite完整路径（供Spring直接使用）
+  sqlite-full-url: jdbc:sqlite:./data/${database.init.name}.db
 
-# 业务配置
+# Spring核心配置
 spring:
+ # 数据源配置（仅作为配置项，实际由DynamicDataSourceConfig动态配置）
  datasource:
-  type: com.alibaba.druid.pool.DruidDataSource
-  # 该账户有读写数据库权限就行
+  # MySQL主数据源配置
   username: root
   password: /*你的数据库密码*/
-  url: jdbc:mysql://localhost:3306/${database.init.name}?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
+  url: jdbc:mysql://localhost:3306/${database.init.name}?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false
+  driver-class-name: com.mysql.cj.jdbc.Driver
+  # SQLite备用数据源配置（降级时使用）
+  sqlite:
+   # 直接使用预解析的完整URL，避免二次替换
+   url: ${database.init.sqlite-full-url}
+   driver-class-name: org.sqlite.JDBC
+
+ # Redis配置
  redis:
   host: 127.0.0.1
   port: 6379
+  timeout: 5000ms
+
+ # MVC配置
  mvc:
   pathmatch:
    matching-strategy: ant-path-matcher
- # 配置 SQL 脚本初始化
+
+ # SQL初始化配置
  sql:
   init:
-   # 是否开启初始化
-   mode: always
-   # 数据表创建脚本
-   schema-locations: classpath:sql/schema-tables.sql
-   # 脚本编码
+   mode: embedded
+   schema-locations: classpath:sql/schema-tables-${spring.sql.init.platform}.sql
    encoding: UTF-8
-   # SQL 语句分隔符
    separator: ;
-   # 仅当连接的数据库是 MySQL 时执行（可选，增加兼容性）
    platform: mysql
+   continue-on-error: true
+   initialize-schema: embedded
 
-#设置jwt响应头名、有效时间、HS512算法签名密钥
+# JWT配置
 shuangtian:
  jwt:
   header: Authorization
-  expire: 604800 # 7天，s为单位
+  expire: 604800 # 7天（秒）
   secret: abcdefghabcdefghabcdefghabcdefgh
+
+# 移除Druid自动配置，由DynamicDataSourceConfig手动配置
