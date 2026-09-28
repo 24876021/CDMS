@@ -1,27 +1,45 @@
 server:
  port: 8082
- #address: 192.168.93.11
+ #address: 192.168.93.11 //前端在局域网内其它的设备上运行时
 
+# 建库配置
+database:
+ init:
+  # 建库名，同时是业务库名（有则使用，无则创建）；若指定现有的数据库，则其它建库配置可以无视
+  name: community_diagnosis_db
+  # 仅连接MySQL服务器，不指定具体库
+  temp-url: jdbc:mysql://localhost:3306/?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
+  # 该账户需要有建库权限
+  username: root
+  password: /*你的数据库密码*/
+
+# 业务配置
 spring:
  datasource:
   type: com.alibaba.druid.pool.DruidDataSource
+  # 该账户有读写数据库权限就行
   username: root
   password: /*你的数据库密码*/
-  url: jdbc:mysql://localhost:3306/community_diagnosis_db?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
-  hikari:
-   connection-test-query: SELECT 1
-   max-lifetime: 120000
-   maximum-pool-size: 200
-   minimum-idle: 5
-   connection-timeout: 30000
-   idle-timeout: 600000
-   pool-name: webPool
+  url: jdbc:mysql://localhost:3306/${database.init.name}?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
  redis:
-    host: 127.0.0.1
-    port: 6379
+  host: 127.0.0.1
+  port: 6379
  mvc:
-  path match:
+  pathmatch:
    matching-strategy: ant-path-matcher
+ # 配置 SQL 脚本初始化
+ sql:
+  init:
+   # 是否开启初始化
+   mode: always
+   # 数据表创建脚本
+   schema-locations: classpath:sql/schema-tables.sql
+   # 脚本编码
+   encoding: UTF-8
+   # SQL 语句分隔符
+   separator: ;
+   # 仅当连接的数据库是 MySQL 时执行（可选，增加兼容性）
+   platform: mysql
 
 #设置jwt响应头名、有效时间、HS512算法签名密钥
 shuangtian:
@@ -29,6 +47,3 @@ shuangtian:
   header: Authorization
   expire: 604800 # 7天，s为单位
   secret: abcdefghabcdefghabcdefghabcdefgh
-
-
-

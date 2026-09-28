@@ -1,6 +1,7 @@
 import axios from "axios";
 axios.defaults.withCredentials = true;
-let baseUrl = "http://localhost:8082";
+//let baseUrl = "http://localhost:8082";
+let baseUrl = `http://${window.location.hostname}:8082`;
 export const getRequest = (url, params) => {
     const jwtToken = localStorage.getItem('jwtToken');
     console.log(jwtToken);

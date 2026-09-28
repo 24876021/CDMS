@@ -1,5 +1,4 @@
 <template>
-
   <div class="page-background">
     <el-container class="app-main-wrap">
       <el-header>
@@ -11,7 +10,6 @@
         </div>
       </el-header>
       <el-main>
-
         <el-row v-if="activeTab === 'first'">
           <el-col :span="12">
             <el-input v-if="hasGetPermission" v-model="searchQuery" placeholder="请输入患者ID或姓名" clearable style="width: 200px;" @keydown.enter.native="searchUser"></el-input>
@@ -21,8 +19,8 @@
 
         <el-row v-if="activeTab === 'five'">
           <el-col :span="12">
-        <el-input v-if="hasGetPermission" v-model="idCardNumber" placeholder="请输入身份证号" clearable style="width: 200px;" />
-        <el-button v-if="hasGetPermission" type="primary" @click="searchByIdCardNumber">查询</el-button>
+            <el-input v-if="hasGetPermission" v-model="idCardNumber" placeholder="请输入身份证号" clearable style="width: 200px;" />
+            <el-button v-if="hasGetPermission" type="primary" @click="searchByIdCardNumber">查询</el-button>
           </el-col>
         </el-row>
 
@@ -33,8 +31,25 @@
             <el-table :data="patients" style="width: 100%; border-radius: 5px;">
               <el-table-column v-for="col in columns" :key="col.prop" :prop="col.prop" :label="col.label" :width="col.width" align="center">
                 <template slot-scope="scope">
-                  <el-input v-if="scope.row.editing" v-model="scope.row[col.prop]"></el-input>
-                  <span v-else>{{ scope.row[col.prop] }}</span>
+                  <!-- 出生日期下拉选择框 -->
+                  <template v-if="scope.row.editing && col.prop === 'birthDate'">
+                    <el-select v-model="scope.row.year" placeholder="年" style="width: 80px;" @change="handleBirthDateChange(scope.row)">
+                      <el-option v-for="year in years" :key="year" :label="year" :value="year"></el-option>
+                    </el-select>
+                    <el-select v-model="scope.row.month" placeholder="月" style="width: 70px;" @change="handleBirthDateChange(scope.row)">
+                      <el-option v-for="month in months" :key="month" :label="month" :value="month"></el-option>
+                    </el-select>
+                    <el-select v-model="scope.row.day" placeholder="日" style="width: 70px;" @change="handleBirthDateChange(scope.row)">
+                      <el-option v-for="day in getDaysInMonth(scope.row.year, scope.row.month)" :key="day" :label="day" :value="day"></el-option>
+                    </el-select>
+                  </template>
+                  <!-- 年龄字段禁用输入，仅展示 -->
+                  <el-input v-else-if="scope.row.editing && col.prop === 'age'" v-model="scope.row[col.prop]" disabled style="width: 100%;"></el-input>
+                  <el-input v-else-if="scope.row.editing" v-model="scope.row[col.prop]"></el-input>
+                  <template v-else>
+                    <span v-if="col.prop === 'birthDate'">{{ formatDate(scope.row.birthDate) }}</span>
+                    <span v-else>{{ scope.row[col.prop] }}</span>
+                  </template>
                 </template>
               </el-table-column>
               <el-table-column label="操作">
@@ -92,7 +107,21 @@
           <el-tab-pane v-if=hasDoctorRole label="添加患者" name="third">
             <el-form label-width="80px" :model="addUserParams" :rules="rules" ref="addUserForm">
               <el-form-item v-for="item in formItems" :key="item.prop" :label="item.label" :prop="item.prop">
-                <el-input v-if="item.type === 'input'" v-model="addUserParams[item.prop]" :placeholder="item.placeholder" clearable style="width: 200px;"></el-input>
+                <el-input v-if="item.type === 'input' && item.prop !== 'birthDate' && item.prop !== 'age'" v-model="addUserParams[item.prop]" :placeholder="item.placeholder" clearable style="width: 200px;"></el-input>
+                <!-- 年龄字段禁用输入，仅展示 -->
+                <el-input v-if="item.prop === 'age'" v-model="addUserParams.age" disabled placeholder="自动计算" style="width: 200px;"></el-input>
+                <!-- 添加患者的出生日期下拉选择框 -->
+                <template v-if="item.prop === 'birthDate'">
+                  <el-select v-model="addUserParams.year" placeholder="年" style="width: 80px;" @change="handleAddBirthDateChange">
+                    <el-option v-for="year in years" :key="year" :label="year" :value="year"></el-option>
+                  </el-select>
+                  <el-select v-model="addUserParams.month" placeholder="月" style="width: 70px;" @change="handleAddBirthDateChange">
+                    <el-option v-for="month in months" :key="month" :label="month" :value="month"></el-option>
+                  </el-select>
+                  <el-select v-model="addUserParams.day" placeholder="日" style="width: 70px;" @change="handleAddBirthDateChange">
+                    <el-option v-for="day in getDaysInMonth(addUserParams.year, addUserParams.month)" :key="day" :label="day" :value="day"></el-option>
+                  </el-select>
+                </template>
                 <el-select v-else-if="item.type === 'select'" v-model="addUserParams[item.prop]" :placeholder="item.placeholder" style="width: 200px;">
                   <el-option v-for="option in options" :key="option.value" :label="option.label" :value="option.value"></el-option>
                 </el-select>
@@ -132,6 +161,10 @@
           <el-tab-pane v-if="hasPatientRole" label="指定患者信息" name="five">
             <el-table :data="selectedPatient" style="width: 100%; border-radius: 5px;">
               <el-table-column v-for="col in columns" :key="col.prop" :prop="col.prop" :label="col.label" :width="col.width" align="center">
+                <template slot-scope="scope">
+                  <span v-if="col.prop === 'birthDate'">{{ formatDate(scope.row.birthDate) }}</span>
+                  <span v-else>{{ scope.row[col.prop] }}</span>
+                </template>
               </el-table-column>
               <el-table-column label="操作">
                 <template slot-scope="scope">
@@ -150,8 +183,9 @@
           {{ currentUser.name }}<i class="el-icon-arrow-down el-icon--right"></i>
         </span>
         <el-dropdown-menu slot="dropdown">
+          <!-- 遍历用户信息项，包含新增的角色项 -->
           <el-dropdown-item v-for="item in userInfoItems" :key="item.prop" :command="item.prop">
-            {{ item.label }}: {{ currentUser[item.prop] }}
+            {{ item.label }}: {{ item.prop === 'roleNames' ? currentUser.roleNames : currentUser[item.prop] }}
           </el-dropdown-item>
           <el-dropdown-item command="logout">登出</el-dropdown-item>
         </el-dropdown-menu>
@@ -165,7 +199,7 @@
         @close="dialogVisible = false"
     >
       <el-form label-width="120px">
-<!--嵌套了一层<el-form-item>是为了正确地绑定数组（因为el-form不能直接绑定数组，只能绑定对象。。）-->
+        <!--嵌套了一层<el-form-item>是为了正确地绑定数组（因为el-form不能直接绑定数组，只能绑定对象。。）-->
         <el-form-item
             v-for="(record, index) in medicalRecord"
             :key="index"
@@ -182,7 +216,7 @@
               :prop="col.prop"
               class="form-item-border"
           >
-            {{ medicalRecord[index][col.prop] }}
+            {{ formatDate(medicalRecord[index][col.prop]) }}
           </el-form-item>
         </el-form-item>
       </el-form>
@@ -198,19 +232,86 @@
       ></el-pagination>
     </el-dialog>
 
-    <!-- 添加病历信息弹窗 -->
+    <!-- 添加病历信息弹窗 - 修改为年月日下拉框 -->
     <el-dialog
         title="添加病历"
         :visible.sync="addMedicalRecordDialogVisible"
-        width="50%"
-        @close="addMedicalRecordDialogVisible = false"
+        width="60%"
+        @close="resetAddMedicalRecordDialog"
+        @opened="onAddMedicalRecordDialogOpened"
     >
       <el-form label-width="120px" :model="medicalRecord" :rules="addMedicalRecordRules" ref="addMedicalRecordForm">
-        <el-form-item v-for="(item, index) in medicalColumns" :key="index" :label="item.label" :prop="item.prop">
-          <el-input v-model="medicalRecord[item.prop]"></el-input>
+        <!-- 患者ID字段 -->
+        <el-form-item label="患者ID" prop="patientId">
+          <el-input v-model="medicalRecord.patientId" disabled></el-input>
+        </el-form-item>
+        <!-- 就诊日期 - 年月日下拉框 -->
+        <el-form-item label="就诊日期" prop="visitDate" required>
+          <div style="display: flex; gap: 10px;">
+            <el-select v-model="tempVisitDate.year" placeholder="年" style="width: 100px;" @change="handleVisitDateChange">
+              <el-option v-for="year in dateYears" :key="year" :label="year" :value="year"></el-option>
+            </el-select>
+            <el-select v-model="tempVisitDate.month" placeholder="月" style="width: 80px;" @change="handleVisitDateChange">
+              <el-option v-for="month in months" :key="month" :label="month" :value="month"></el-option>
+            </el-select>
+            <el-select v-model="tempVisitDate.day" placeholder="日" style="width: 80px;" @change="handleVisitDateChange">
+              <el-option v-for="day in getDaysInMonth(tempVisitDate.year, tempVisitDate.month)" :key="day" :label="day" :value="day"></el-option>
+            </el-select>
+          </div>
+        </el-form-item>
+        <!-- 主诉 -->
+        <el-form-item label="主诉" prop="chiefComplaint">
+          <el-input v-model="medicalRecord.chiefComplaint" type="textarea" :rows="2"></el-input>
+        </el-form-item>
+        <!-- 现病史 -->
+        <el-form-item label="现病史" prop="presentIllness">
+          <el-input v-model="medicalRecord.presentIllness" type="textarea" :rows="2"></el-input>
+        </el-form-item>
+        <!-- 既往史 -->
+        <el-form-item label="既往史" prop="pastHistory">
+          <el-input v-model="medicalRecord.pastHistory" type="textarea" :rows="2"></el-input>
+        </el-form-item>
+        <!-- 家族史 -->
+        <el-form-item label="家族史" prop="familyHistory">
+          <el-input v-model="medicalRecord.familyHistory" type="textarea" :rows="2"></el-input>
+        </el-form-item>
+        <!-- 体格检查 -->
+        <el-form-item label="体格检查" prop="physicalExamination">
+          <el-input v-model="medicalRecord.physicalExamination" type="textarea" :rows="2"></el-input>
+        </el-form-item>
+        <!-- 诊断 -->
+        <el-form-item label="诊断" prop="diagnosis">
+          <el-input v-model="medicalRecord.diagnosis" type="textarea" :rows="2"></el-input>
+        </el-form-item>
+        <!-- 治疗方案 -->
+        <el-form-item label="治疗方案" prop="treatmentPlan">
+          <el-input v-model="medicalRecord.treatmentPlan" type="textarea" :rows="2"></el-input>
+        </el-form-item>
+        <!-- 出院日期 - 年月日下拉框 -->
+        <el-form-item label="出院日期" prop="dischargeDate">
+          <div style="display: flex; gap: 10px;">
+            <el-select v-model="tempDischargeDate.year" placeholder="年" style="width: 100px;" @change="handleDischargeDateChange">
+              <el-option v-for="year in dateYears" :key="year" :label="year" :value="year"></el-option>
+            </el-select>
+            <el-select v-model="tempDischargeDate.month" placeholder="月" style="width: 80px;" @change="handleDischargeDateChange">
+              <el-option v-for="month in months" :key="month" :label="month" :value="month"></el-option>
+            </el-select>
+            <el-select v-model="tempDischargeDate.day" placeholder="日" style="width: 80px;" @change="handleDischargeDateChange">
+              <el-option v-for="day in getDaysInMonth(tempDischargeDate.year, tempDischargeDate.month)" :key="day" :label="day" :value="day"></el-option>
+            </el-select>
+          </div>
+        </el-form-item>
+        <!-- 出院诊断 -->
+        <el-form-item label="出院诊断" prop="dischargeDiagnosis">
+          <el-input v-model="medicalRecord.dischargeDiagnosis" type="textarea" :rows="2"></el-input>
+        </el-form-item>
+        <!-- 出院医嘱 -->
+        <el-form-item label="出院医嘱" prop="dischargeInstructions">
+          <el-input v-model="medicalRecord.dischargeInstructions" type="textarea" :rows="2"></el-input>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="submitAddMedicalRecord">提交</el-button>
+          <el-button @click="addMedicalRecordDialogVisible = false">取消</el-button>
         </el-form-item>
       </el-form>
     </el-dialog>
@@ -275,32 +376,71 @@
       <el-form label-width="120px">
         <el-form-item v-for="(col, index) in medicationColumns" :key="index">
           <el-form-item :label="col.label" :prop="col.prop" class="form-item-border">
-            {{ medicationRecord[col.prop] }}
+            {{ formatDate(medicationRecord[col.prop]) }}
           </el-form-item>
         </el-form-item>
       </el-form>
     </el-dialog>
 
+    <!-- 添加用药信息弹窗 - 修改为年月日下拉框 -->
     <el-dialog
-        title="用药信息添加"
+        title="添加用药信息"
         :visible.sync="addMedicationRecordDialogVisible"
         width="50%"
-        @close="addMedicationRecordDialogVisible = false"
+        @close="resetAddMedicationRecordDialog"
+        @opened="onAddMedicationRecordDialogOpened"
     >
       <el-form label-width="120px" :model="medicationRecord" :rules="medicationRecordRules" ref="medicationRecordForm">
-        <el-form-item v-for="(col, index) in medicationColumns" :key="index">
-          <el-form-item :label="col.label" :prop="col.prop" class="form-item-border">
-            <el-input v-model="medicationRecord[col.prop]"></el-input>
-          </el-form-item>
+        <!-- 药品名称 -->
+        <el-form-item label="药品名称" prop="drugName">
+          <el-input v-model="medicationRecord.drugName"></el-input>
+        </el-form-item>
+        <!-- 剂量 -->
+        <el-form-item label="剂量" prop="dosage">
+          <el-input v-model="medicationRecord.dosage"></el-input>
+        </el-form-item>
+        <!-- 用药频率 -->
+        <el-form-item label="用药频率" prop="frequency">
+          <el-input v-model="medicationRecord.frequency"></el-input>
+        </el-form-item>
+        <!-- 开始日期 - 年月日下拉框 -->
+        <el-form-item label="开始日期" prop="startDate" required>
+          <div style="display: flex; gap: 10px;">
+            <el-select v-model="tempStartDate.year" placeholder="年" style="width: 100px;" @change="handleStartDateChange">
+              <el-option v-for="year in dateYears" :key="year" :label="year" :value="year"></el-option>
+            </el-select>
+            <el-select v-model="tempStartDate.month" placeholder="月" style="width: 80px;" @change="handleStartDateChange">
+              <el-option v-for="month in months" :key="month" :label="month" :value="month"></el-option>
+            </el-select>
+            <el-select v-model="tempStartDate.day" placeholder="日" style="width: 80px;" @change="handleStartDateChange">
+              <el-option v-for="day in getDaysInMonth(tempStartDate.year, tempStartDate.month)" :key="day" :label="day" :value="day"></el-option>
+            </el-select>
+          </div>
+        </el-form-item>
+        <!-- 结束日期 - 年月日下拉框 -->
+        <el-form-item label="结束日期" prop="endDate" required>
+          <div style="display: flex; gap: 10px;">
+            <el-select v-model="tempEndDate.year" placeholder="年" style="width: 100px;" @change="handleEndDateChange">
+              <el-option v-for="year in dateYears" :key="year" :label="year" :value="year"></el-option>
+            </el-select>
+            <el-select v-model="tempEndDate.month" placeholder="月" style="width: 80px;" @change="handleEndDateChange">
+              <el-option v-for="month in months" :key="month" :label="month" :value="month"></el-option>
+            </el-select>
+            <el-select v-model="tempEndDate.day" placeholder="日" style="width: 80px;" @change="handleEndDateChange">
+              <el-option v-for="day in getDaysInMonth(tempEndDate.year, tempEndDate.month)" :key="day" :label="day" :value="day"></el-option>
+            </el-select>
+          </div>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="submitMedicationRecord">提交</el-button>
+          <el-button @click="addMedicationRecordDialogVisible = false">取消</el-button>
         </el-form-item>
       </el-form>
     </el-dialog>
 
   </div>
 </template>
+
 <script>
 export default {
   name: "PatientInfo",
@@ -320,7 +460,10 @@ export default {
         age: null,
         idCardNumber: null,
         contactNumber: null,
-        address: null
+        address: null,
+        year: null,  // 新增：年份
+        month: null, // 新增：月份
+        day: null    // 新增：日期
       },
       options: [{ value: '男', label: '男' }, { value: '女', label: '女' }],
       searchQuery: '',
@@ -348,6 +491,13 @@ export default {
       medicationRecord: {
         medicationId:null
       }, // 用药记录数据
+
+      // 添加病历弹窗临时日期变量
+      tempVisitDate: { year: null, month: null, day: null },
+      tempDischargeDate: { year: null, month: null, day: null },
+      // 添加用药弹窗临时日期变量
+      tempStartDate: { year: null, month: null, day: null },
+      tempEndDate: { year: null, month: null, day: null },
 
       medicalColumns: [
         { prop: 'visitDate', label: '就诊日期：' },
@@ -387,11 +537,17 @@ export default {
         { prop: 'name', label: '姓名', type: 'input', placeholder: '请输入内容' },
         { prop: 'gender', label: '性别', type: 'select', placeholder: '请选择' },
         { prop: 'birthDate', label: '出生日期', type: 'input', placeholder: '请输入内容' },
-        { prop: 'age', label: '年龄', type: 'input', placeholder: '请输入内容' },
+        { prop: 'age', label: '年龄', type: 'input', placeholder: '自动计算' },
         { prop: 'idCardNumber', label: '身份证号', type: 'input', placeholder: '请输入内容' },
         { prop: 'contactNumber', label: '联系电话', type: 'input', placeholder: '请输入内容' },
         { prop: 'address', label: '地址', type: 'input', placeholder: '请输入内容' }
       ],
+      // 年份下拉选项（1900-当前年份）
+      years: Array.from({length: new Date().getFullYear() - 1900 + 1}, (_, i) => 1900 + i),
+      // 用于病历和用药的年份范围（1900-当前年份+5，允许未来日期）
+      dateYears: Array.from({length: new Date().getFullYear() - 1900 + 6}, (_, i) => 1900 + i),
+      // 月份下拉选项
+      months: Array.from({length: 12}, (_, i) => i + 1),
       rules: {
         name: [
           { required: true, message: '请输入姓名', trigger: 'blur' }
@@ -400,10 +556,11 @@ export default {
           { required: true, message: '请选择性别', trigger: 'change' }
         ],
         birthDate: [
-          { required: true, message: '请输入出生日期', trigger: 'blur' }
+          { required: true, message: '请选择出生日期', trigger: 'change' }
         ],
         age: [
-          { required: true, message: '请输入年龄', trigger: 'blur' }
+          // 移除年龄的必填验证，改为自动计算
+          { required: false }
         ],
         idCardNumber: [
           { required: true, message: '请输入身份证号', trigger: 'blur' }
@@ -440,70 +597,60 @@ export default {
           { required: true, message: '请输入用药频率', trigger: 'blur' }
         ],
         startDate: [
-          { required: true, message: '请输入开始日期', trigger: 'blur' }
+          { required: true, message: '请选择开始日期', trigger: 'change' }
         ],
         endDate: [
-          { required: true, message: '请输入结束日期', trigger: 'blur' }
+          { required: true, message: '请选择结束日期', trigger: 'change' }
         ]
       },
       addMedicalRecordRules: {
-        // 患者 ID 字段的验证规则
         patientId: [
           { required: true, message: '请输入患者 ID', trigger: 'blur' }
         ],
-        // 就诊日期字段的验证规则
         visitDate: [
-          { required: true, message: '请输入就诊日期', trigger: 'blur' }
+          { required: true, message: '请选择就诊日期', trigger: 'change' }
         ],
-        // 主诉字段的验证规则
         chiefComplaint: [
           { required: true, message: '请输入主诉', trigger: 'blur' }
         ],
-        // 现病史字段的验证规则
         presentIllness: [
           { required: true, message: '请输入现病史', trigger: 'blur' }
         ],
-        // 既往史字段的验证规则
         pastHistory: [
           { required: true, message: '请输入既往史', trigger: 'blur' }
         ],
-        // 家族史字段的验证规则
         familyHistory: [
           { required: true, message: '请输入家族史', trigger: 'blur' }
         ],
-        // 体格检查字段的验证规则
         physicalExamination: [
           { required: true, message: '请输入体格检查结果', trigger: 'blur' }
         ],
-        // 诊断字段的验证规则
         diagnosis: [
           { required: true, message: '请输入诊断结果', trigger: 'blur' }
         ],
-        // 治疗方案字段的验证规则
         treatmentPlan: [
           { required: true, message: '请输入治疗方案', trigger: 'blur' }
         ],
-        // 出院日期字段的验证规则
         dischargeDate: [
-          { required: true, message: '请输入出院日期', trigger: 'blur' }
+          { required: false, message: '请选择出院日期', trigger: 'change' }
         ],
-        // 出院诊断字段的验证规则
         dischargeDiagnosis: [
           { required: true, message: '请输入出院诊断结果', trigger: 'blur' }
         ],
-        // 出院医嘱字段的验证规则
         dischargeInstructions: [
           { required: true, message: '请输入出院医嘱', trigger: 'blur' }
         ]
       },
       activeTab: 'first',
       currentUser: [],
+      // 新增：添加用户角色项
       userInfoItems: [
         { prop: 'userId', label: '用户ID' },
         { prop: 'name', label: '用户昵称' },
         { prop: 'account', label: '账号' },
         { prop: 'status', label: '是否正常' },
-        { prop: 'disable', label: '是否启用' }
+        { prop: 'disable', label: '是否启用' },
+        { prop: 'roleNames', label: '用户角色' } // 新增角色项
       ],
       currentPage: 1,
       pageSize: 10,
@@ -548,6 +695,177 @@ export default {
     }
   },
   methods: {
+    // 日期格式化：将带时间的字符串转为 YYYY-MM-DD
+    formatDate(date) {
+      if (!date) return '';
+      // 如果已经是 YYYY-MM-DD 格式，直接返回
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+      try {
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return date;
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        return date;
+      }
+    },
+    // 根据出生日期计算年龄
+    calculateAge(birthYear, birthMonth, birthDay) {
+      if (!birthYear || !birthMonth || !birthDay) return null;
+
+      const birthDate = new Date(birthYear, birthMonth - 1, birthDay);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+
+      // 计算月份差，如果还没到生日，年龄减1
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+
+      return age;
+    },
+    // 获取某年某月的天数
+    getDaysInMonth(year, month) {
+      if (!year || !month) return [];
+      const daysInMonth = new Date(year, month, 0).getDate();
+      return Array.from({length: daysInMonth}, (_, i) => i + 1);
+    },
+    // 兼容旧版getDays方法（使用当前年份）
+    getDays(month) {
+      if (!month) return [];
+      const year = new Date().getFullYear();
+      return this.getDaysInMonth(year, month);
+    },
+    // 编辑患者时出生日期变化，更新年龄
+    handleBirthDateChange(row) {
+      // 更新出生日期
+      if (row.year && row.month && row.day) {
+        row.birthDate = `${row.year}-${String(row.month).padStart(2, '0')}-${String(row.day).padStart(2, '0')}`;
+        // 计算年龄
+        row.age = this.calculateAge(row.year, row.month, row.day);
+      }
+    },
+    // 添加患者时出生日期变化，更新年龄，并触发表单验证
+    handleAddBirthDateChange() {
+      // 更新出生日期
+      if (this.addUserParams.year && this.addUserParams.month && this.addUserParams.day) {
+        this.addUserParams.birthDate = `${this.addUserParams.year}-${String(this.addUserParams.month).padStart(2, '0')}-${String(this.addUserParams.day).padStart(2, '0')}`;
+        // 计算年龄
+        this.addUserParams.age = this.calculateAge(this.addUserParams.year, this.addUserParams.month, this.addUserParams.day);
+      }
+      // 手动触发表单验证，清除出生日期的错误提示
+      this.$nextTick(() => {
+        if (this.$refs.addUserForm) {
+          this.$refs.addUserForm.clearValidate('birthDate');
+          this.$refs.addUserForm.validateField('birthDate');
+        }
+      });
+    },
+    // 病历就诊日期变化处理，并手动验证
+    handleVisitDateChange() {
+      if (this.tempVisitDate.year && this.tempVisitDate.month && this.tempVisitDate.day) {
+        this.medicalRecord.visitDate = `${this.tempVisitDate.year}-${String(this.tempVisitDate.month).padStart(2, '0')}-${String(this.tempVisitDate.day).padStart(2, '0')}`;
+      } else {
+        this.medicalRecord.visitDate = '';
+      }
+      this.$nextTick(() => {
+        if (this.$refs.addMedicalRecordForm) {
+          this.$refs.addMedicalRecordForm.clearValidate('visitDate');
+          this.$refs.addMedicalRecordForm.validateField('visitDate');
+        }
+      });
+    },
+    // 病历出院日期变化处理，并手动验证（非必填，但清除错误）
+    handleDischargeDateChange() {
+      if (this.tempDischargeDate.year && this.tempDischargeDate.month && this.tempDischargeDate.day) {
+        this.medicalRecord.dischargeDate = `${this.tempDischargeDate.year}-${String(this.tempDischargeDate.month).padStart(2, '0')}-${String(this.tempDischargeDate.day).padStart(2, '0')}`;
+      } else {
+        this.medicalRecord.dischargeDate = '';
+      }
+      this.$nextTick(() => {
+        if (this.$refs.addMedicalRecordForm) {
+          this.$refs.addMedicalRecordForm.clearValidate('dischargeDate');
+          this.$refs.addMedicalRecordForm.validateField('dischargeDate');
+        }
+      });
+    },
+    // 用药开始日期变化处理，并手动验证
+    handleStartDateChange() {
+      if (this.tempStartDate.year && this.tempStartDate.month && this.tempStartDate.day) {
+        this.medicationRecord.startDate = `${this.tempStartDate.year}-${String(this.tempStartDate.month).padStart(2, '0')}-${String(this.tempStartDate.day).padStart(2, '0')}`;
+      } else {
+        this.medicationRecord.startDate = '';
+      }
+      this.$nextTick(() => {
+        if (this.$refs.medicationRecordForm) {
+          this.$refs.medicationRecordForm.clearValidate('startDate');
+          this.$refs.medicationRecordForm.validateField('startDate');
+        }
+      });
+    },
+    // 用药结束日期变化处理，并手动验证
+    handleEndDateChange() {
+      if (this.tempEndDate.year && this.tempEndDate.month && this.tempEndDate.day) {
+        this.medicationRecord.endDate = `${this.tempEndDate.year}-${String(this.tempEndDate.month).padStart(2, '0')}-${String(this.tempEndDate.day).padStart(2, '0')}`;
+      } else {
+        this.medicationRecord.endDate = '';
+      }
+      this.$nextTick(() => {
+        if (this.$refs.medicationRecordForm) {
+          this.$refs.medicationRecordForm.clearValidate('endDate');
+          this.$refs.medicationRecordForm.validateField('endDate');
+        }
+      });
+    },
+    // 重置添加病历弹窗数据
+    resetAddMedicalRecordDialog() {
+      this.medicalRecord = {
+        patientId: this.selectedPatientId || null,
+        visitDate: '',
+        dischargeDate: ''
+      };
+      this.tempVisitDate = { year: null, month: null, day: null };
+      this.tempDischargeDate = { year: null, month: null, day: null };
+      this.$nextTick(() => {
+        if (this.$refs.addMedicalRecordForm) {
+          this.$refs.addMedicalRecordForm.clearValidate();
+        }
+      });
+    },
+    // 重置添加用药弹窗数据
+    resetAddMedicationRecordDialog() {
+      this.medicationRecord = {
+        medicationId: null,
+        recordId: this.currentRecordId || null,
+        startDate: '',
+        endDate: ''
+      };
+      this.tempStartDate = { year: null, month: null, day: null };
+      this.tempEndDate = { year: null, month: null, day: null };
+      this.$nextTick(() => {
+        if (this.$refs.medicationRecordForm) {
+          this.$refs.medicationRecordForm.clearValidate();
+        }
+      });
+    },
+    // 弹窗打开时的回调（可选，确保表单引用存在）
+    onAddMedicalRecordDialogOpened() {
+      this.$nextTick(() => {
+        if (this.$refs.addMedicalRecordForm) {
+          this.$refs.addMedicalRecordForm.clearValidate();
+        }
+      });
+    },
+    onAddMedicationRecordDialogOpened() {
+      this.$nextTick(() => {
+        if (this.$refs.medicationRecordForm) {
+          this.$refs.medicationRecordForm.clearValidate();
+        }
+      });
+    },
     searchByIdCardNumber() {
       // 发送查询请求
       this.getRequest(`/patient/idCardNumber?idCardNumber=${this.idCardNumber}`)
@@ -574,11 +892,15 @@ export default {
     },
     // 打开添加病历弹窗
     openAddMedicalRecordDialog(patientId) {
-      this.addMedicalRecordDialogVisible = true;
+      this.selectedPatientId = patientId;
       this.medicalRecord = {
-        // 初始化添加病历的表单数据
         patientId: patientId,
+        visitDate: '',
+        dischargeDate: ''
       };
+      this.tempVisitDate = { year: null, month: null, day: null };
+      this.tempDischargeDate = { year: null, month: null, day: null };
+      this.addMedicalRecordDialogVisible = true;
     },
     // 打开费用信息弹窗
     openBillingRecordDialog(recordId) {
@@ -614,8 +936,15 @@ export default {
     },
     // 打开添加用药信息弹窗
     openAddMedicationRecordDialog(recordId) {
+      this.currentRecordId = recordId;
+      this.medicationRecord = {
+        recordId: recordId,
+        startDate: '',
+        endDate: ''
+      };
+      this.tempStartDate = { year: null, month: null, day: null };
+      this.tempEndDate = { year: null, month: null, day: null };
       this.addMedicationRecordDialogVisible = true;
-      this.medicationRecord.recordId = recordId;
     },
     // 关闭用药信息弹窗
     closeMedicationRecordDialog() {
@@ -653,7 +982,27 @@ export default {
       this.getRequest(`/patient/AllUsersPage?current=${this.currentPage}&size=${this.pageSize}`).then(resp => {
         if (resp.data.code === 200) {
           if (showMessage) this.$message.success("刷新成功!");
-          this.patients = resp.data.data.records.map(patient => ({ ...patient, editing: false }));
+          // 解析出生日期为年月日，并计算年龄
+          this.patients = resp.data.data.records.map(patient => {
+            const birthDate = patient.birthDate;
+            let year, month, day, age;
+            if (birthDate) {
+              const dateParts = birthDate.split('-');
+              year = parseInt(dateParts[0]);
+              month = parseInt(dateParts[1]);
+              day = parseInt(dateParts[2]);
+              // 计算年龄
+              age = this.calculateAge(year, month, day);
+            }
+            return {
+              ...patient,
+              editing: false,
+              year,
+              month,
+              day,
+              age: age || patient.age // 使用计算的年龄，没有则用原有值
+            };
+          });
           this.total = resp.data.data.total;
         } else if (resp.data.code === 400 && showMessage) {
           this.$message.error(resp.data.data);
@@ -691,7 +1040,7 @@ export default {
           if (resp.data.code === 200) {
             role.selectedAuthorities = resp.data.data; // 默认选中权限
           } else {
-            this.$message.error("有角色无权限!");
+            this.$message.error("检测到有角色无权限!");
           }
         });
       });
@@ -703,7 +1052,7 @@ export default {
           if (resp.data.code === 200) {
             user.selectedRoles = resp.data.data;
           } else {
-            this.$message.error("有用户无角色!");
+            this.$message.error("检测到有用户无角色!");
           }
         });
       });
@@ -756,10 +1105,26 @@ export default {
     addUser() {
       this.$refs.addUserForm.validate((valid) => {
         if (valid) {
+          // 确保出生日期和年龄已正确设置
+          this.handleAddBirthDateChange();
           this.postRequest("/patient/user", this.addUserParams).then(resp => {
             if (resp.data.code === 200) {
               console.log(resp);
               this.$message.success("添加成功!");
+              // 重置表单
+              this.addUserParams = {
+                patientId: null,
+                name: null,
+                gender: null,
+                birthDate: null,
+                age: null,
+                idCardNumber: null,
+                contactNumber: null,
+                address: null,
+                year: null,
+                month: null,
+                day: null
+              };
             } else {
               this.$message.error("添加失败!");
             }
@@ -802,6 +1167,14 @@ export default {
     },
     //添加用药记录
     submitMedicationRecord() {
+      // 先确保日期已设置
+      if (this.tempStartDate.year && this.tempStartDate.month && this.tempStartDate.day) {
+        this.medicationRecord.startDate = `${this.tempStartDate.year}-${String(this.tempStartDate.month).padStart(2, '0')}-${String(this.tempStartDate.day).padStart(2, '0')}`;
+      }
+      if (this.tempEndDate.year && this.tempEndDate.month && this.tempEndDate.day) {
+        this.medicationRecord.endDate = `${this.tempEndDate.year}-${String(this.tempEndDate.month).padStart(2, '0')}-${String(this.tempEndDate.day).padStart(2, '0')}`;
+      }
+
       this.$refs.medicationRecordForm.validate((valid) => {
         if (valid) {
           this.postRequest("/addMedicationRecord", this.medicationRecord).then((resp) => {
@@ -819,6 +1192,14 @@ export default {
     },
     // 提交添加病历的表单
     submitAddMedicalRecord() {
+      // 先确保日期已设置
+      if (this.tempVisitDate.year && this.tempVisitDate.month && this.tempVisitDate.day) {
+        this.medicalRecord.visitDate = `${this.tempVisitDate.year}-${String(this.tempVisitDate.month).padStart(2, '0')}-${String(this.tempVisitDate.day).padStart(2, '0')}`;
+      }
+      if (this.tempDischargeDate.year && this.tempDischargeDate.month && this.tempDischargeDate.day) {
+        this.medicalRecord.dischargeDate = `${this.tempDischargeDate.year}-${String(this.tempDischargeDate.month).padStart(2, '0')}-${String(this.tempDischargeDate.day).padStart(2, '0')}`;
+      }
+
       this.$refs.addMedicalRecordForm.validate((valid) => {
         if (valid) {
           // 发送添加病历的请求
@@ -852,6 +1233,8 @@ export default {
     //修改患者
     editUser(user) {
       if (user.editing) {
+        // 确保出生日期和年龄已正确设置
+        this.handleBirthDateChange(user);
         this.putRequest('/patient/user', user).then(resp => {
           if (resp.data.code === 200) {
             this.$message.success("修改成功!");
@@ -874,7 +1257,41 @@ export default {
       const queryParam = isId ? 'patientId' : 'name';
       this.getRequest(`/patient/user?${queryParam}=${this.searchQuery}`).then(resp => {
         if (resp.data.code === 200) {
-          this.patients = Array.isArray(resp.data.data) ? resp.data.data.map(user => ({ ...user, editing: false })) : [{ ...resp.data.data, editing: false }];
+          // 解析出生日期为年月日，并计算年龄
+          const formatPatients = (data) => {
+            return Array.isArray(data) ? data.map(patient => {
+              const birthDate = patient.birthDate;
+              let year, month, day, age;
+              if (birthDate) {
+                const dateParts = birthDate.split('-');
+                year = parseInt(dateParts[0]);
+                month = parseInt(dateParts[1]);
+                day = parseInt(dateParts[2]);
+                // 计算年龄
+                age = this.calculateAge(year, month, day);
+              }
+              return {
+                ...patient,
+                editing: false,
+                year,
+                month,
+                day,
+                age: age || patient.age
+              };
+            }) : [{
+              ...data,
+              editing: false,
+              year: data.birthDate ? parseInt(data.birthDate.split('-')[0]) : null,
+              month: data.birthDate ? parseInt(data.birthDate.split('-')[1]) : null,
+              day: data.birthDate ? parseInt(data.birthDate.split('-')[2]) : null,
+              age: data.birthDate ? this.calculateAge(
+                  parseInt(data.birthDate.split('-')[0]),
+                  parseInt(data.birthDate.split('-')[1]),
+                  parseInt(data.birthDate.split('-')[2])
+              ) : data.age
+            }];
+          };
+          this.patients = formatPatients(resp.data.data);
           this.$message.success("查询成功!");
         } else {
           this.$message.error(resp.data.msg);
@@ -906,12 +1323,31 @@ export default {
         this.$message.error('状态更新失败');
       });
     },
-    //获取登录用户基本信息
+    //获取登录用户基本信息（新增：获取角色信息）
     fetchCurrentUser() {
       const userId = localStorage.getItem('userId');
+      // 1. 获取用户基本信息
       this.getRequest(`/sysUser/user?userId=${userId}`).then(resp => {
         if (resp.data.code === 200) {
           this.currentUser = resp.data.data;
+          // 2. 获取当前用户的角色信息
+          this.getRequest(`/sysUser/roles?userId=${userId}`).then(roleResp => {
+            if (roleResp.data.code === 200) {
+              const roleIds = roleResp.data.data;
+              // 3. 匹配角色名称（从已加载的roles列表中找对应描述）
+              const roleNames = roleIds.map(roleId => {
+                const role = this.roles.find(r => r.roleId === roleId);
+                return role ? role.description : `未知角色(${roleId})`;
+              }).join('、');
+              // 4. 给currentUser添加角色名称字段
+              this.currentUser.roleNames = roleNames || '无角色';
+            } else {
+              this.currentUser.roleNames = '获取角色失败';
+            }
+          }).catch(error => {
+            console.error('获取用户角色失败:', error);
+            this.currentUser.roleNames = '获取角色失败';
+          });
         } else {
           this.$message.error("获取用户信息失败!");
         }
@@ -969,7 +1405,7 @@ export default {
 
   width: 1500px;
   height: 1500px;
-  //padding: 20px;
+   /*padding: 20px;*/
 
   .app-main-wrap {
     flex: 1; /* 让子容器占据剩余的可用空间 */

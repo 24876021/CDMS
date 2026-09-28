@@ -1,7 +1,6 @@
 <template>
   <div class="page-background">
-    <el-form ref="registerForm" v-bind:rules="rules" v-bind:model="registerData"
-             class="registerContainer">
+    <el-form ref="registerForm" :rules="rules" :model="registerData" class="registerContainer">
       <h3 style="display: flex; justify-content: center">系统注册</h3>
       <el-form-item label="昵称" prop="name">
         <el-input v-model="registerData.name" placeholder="请输入昵称..."></el-input>
@@ -10,13 +9,28 @@
         <el-input v-model="registerData.account" placeholder="请输入账户名..."></el-input>
       </el-form-item>
       <el-form-item label="密码" prop="password">
-        <el-input type="password" v-model="registerData.password" placeholder="请输入密码..."></el-input>
+        <!-- 1. 移除type="password"，添加show-password显示眼睛图标 -->
+        <!-- 2. 添加v-password-tooltip指令实现动态悬停提示 -->
+        <el-input
+            v-model="registerData.password"
+            placeholder="请输入密码..."
+            show-password
+            v-password-tooltip
+        ></el-input>
       </el-form-item>
       <el-form-item label="确认密码" prop="confirmPassword">
-        <el-input @keydown.enter.native="submitRegister" type="password" v-model="registerData.confirmPassword" placeholder="请确认密码..."></el-input>
+        <!-- 1. 移除type="password"，添加show-password显示眼睛图标 -->
+        <!-- 2. 添加v-password-tooltip指令实现动态悬停提示 -->
+        <!-- 3. 保留回车触发注册事件 -->
+        <el-input
+            @keydown.enter.native="submitRegister"
+            v-model="registerData.confirmPassword"
+            placeholder="请确认密码..."
+            show-password
+            v-password-tooltip
+        ></el-input>
       </el-form-item>
-      <el-button type="primary" style="width: 100%; margin-top: 5px" v-on:click="submitRegister">注册
-      </el-button>
+      <el-button type="primary" style="width: 100%; margin-top: 5px" @click="submitRegister">注册</el-button>
       <el-button type="text" @click="goToLogin">已有账号？去登录</el-button>
     </el-form>
   </div>
@@ -28,13 +42,64 @@ import axios from "axios";
 
 export default {
   name: "Register",
+  // 注册自定义指令（和登录页一致，实现动态悬停提示）
+  directives: {
+    'password-tooltip': {
+      inserted(el) {
+        // 找到密码输入框的原生input元素和眼睛图标
+        const inputEl = el.querySelector('input');
+        const iconEl = el.querySelector('.el-input__icon');
+
+        if (!inputEl || !iconEl) {
+          // 兜底：监听DOM变化，确保找到元素
+          const observer = new MutationObserver(() => {
+            const newInput = el.querySelector('input');
+            const newIcon = el.querySelector('.el-input__icon');
+            if (newInput && newIcon) {
+              bindTooltip(newInput, newIcon);
+              observer.disconnect();
+            }
+          });
+          observer.observe(el, { childList: true, subtree: true });
+        } else {
+          bindTooltip(inputEl, iconEl);
+        }
+
+        // 核心：绑定提示文字逻辑
+        function bindTooltip(input, icon) {
+          // 初始化提示文字
+          updateTooltip();
+
+          // 监听input的type属性变化（Element UI切换显示/隐藏时会改这个）
+          const inputObserver = new MutationObserver(() => {
+            updateTooltip();
+          });
+          inputObserver.observe(input, { attributes: true, attributeFilter: ['type'] });
+
+          // 监听图标的鼠标移入事件（确保hover时实时更新）
+          icon.addEventListener('mouseenter', updateTooltip);
+
+          // 更新提示文字的核心函数
+          function updateTooltip() {
+            // 判断依据：input的type是password → 密码隐藏；是text → 密码显示
+            const isHidden = input.type === 'password';
+            icon.title = isHidden ? '显示密码' : '隐藏密码';
+            icon.style.cursor = 'pointer';
+            icon.style.zIndex = 999;
+          }
+        }
+      }
+    }
+  },
   data() {
     return {
       rules: {
-        account: [{ required: true, message: "请输入账户", trigger: 'blur' },
-                  { type: 'string', pattern: /^\d{10}$/, message: "账户名必须是10位数字", trigger: 'blur' }
+        account: [
+          { required: true, message: "请输入账户", trigger: 'blur' },
+          { type: 'string', pattern: /^\d{10}$/, message: "账户名必须是10位数字", trigger: 'blur' }
         ],
-        password: [{ required: true, message: "请输入密码", trigger: 'blur' },
+        password: [
+          { required: true, message: "请输入密码", trigger: 'blur' },
           { min: 8, max: 12, message: "密码长度必须在8到12位之间", trigger: 'blur' },
           { type: 'string', pattern: /^(?=.*[0-9])(?=.*[a-zA-Z])[0-9a-zA-Z]*$/, message: "密码必须包含至少一个数字和一个字母", trigger: 'blur' }
         ],
@@ -70,7 +135,9 @@ export default {
             password: encryptedPassword
           };
 
-          axios.post('http://localhost:8082/sysUser/register', registerRequest).then(resp => {
+          //axios.post('http://localhost:8082/sysUser/register', registerRequest).then(resp => {
+          const backendHost = window.location.hostname;
+          axios.post(`http://${backendHost}:8082/sysUser/register`, registerRequest).then(resp => {
             if (resp.data.code === 200) {
               this.$message.success("注册成功!");
               this.$router.push("/"); // 跳转到登录页面
@@ -95,7 +162,6 @@ export default {
 </script>
 
 <style scoped>
-
 .page-background {
   display: flex; /*设置为弹性容器*/
   flex-direction: column; /*主轴设置为垂直方向*/
@@ -111,12 +177,16 @@ export default {
     margin: 100px auto; /*外边距*/
     width: 350px; /*宽度*/
     padding: 20px 20px 35px 20px; /*上右下左内边距*/
-    //background: #fff; /*背景颜色为白色*/
     background: inherit; /*继承父容器背景*/
     border: 1px solid #eaeaea; /*边框粗细,实线,颜色*/
-    //box-shadow: 0 0 25px #cac6c6; /* x 偏移量 | y 偏移量 | 阴影模糊半径 | 阴影颜色*/
     box-shadow: inset 0 0 0 3000px rgba(255, 255, 255, 0.87);/*box-shadow: rgba(0, 0, 0, 0.1) 0px 15px 30px;*/
   }
 }
 
+/* 强制生效：确保眼睛图标hover提示正常 */
+::v-deep .el-input--show-password .el-input__icon {
+  cursor: pointer !important;
+  z-index: 999 !important;
+  pointer-events: auto !important;
+}
 </style>
