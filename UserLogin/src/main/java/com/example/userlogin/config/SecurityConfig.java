@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -58,19 +59,18 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         return jwtAuthenticationFilter;
     }
 
-//接口认证白名单，以下接口不需要登录即可访问
+    //接口认证白名单，以下接口不需要登录即可访问
     private static final String[] URL_WHITELIST = {
-      "/login",         //登录
-      "/logout",        //登出
-      "/captcha",        //验证码
-      "/sysUser/register", //注册
-      "/sysUser/lockUserByErrorPwd",//锁定
-      "/ws/**",            //放行 WebSocket
-      "/swagger-ui.html",
-      "/webjars/**",
-      "/swagger-resources/**",
-      "/v2/api-docs/**",
-      "/"
+            "/login",         //登录
+            "/logout",        //登出
+            "/captcha",        //验证码
+            "/sysUser/register", //注册
+            "/ws/**",            //放行 WebSocket
+            "/swagger-ui.html",
+            "/webjars/**",
+            "/swagger-resources/**",
+            "/v2/api-docs/**",
+            "/"
     };
 
     /**
@@ -79,6 +79,26 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     PasswordEncoder PasswordEncoder() {
         return new PasswordEncoder();
+    }
+
+    // 区分用户不存在/密码错误
+    @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailService);
+        provider.setPasswordEncoder(PasswordEncoder());
+        // 关闭异常隐藏 → 用户名不存在抛出 UsernameNotFoundException
+        provider.setHideUserNotFoundExceptions(false);
+        return provider;
+    }
+
+    /**
+     * 重写Spring Security获取当前用户的权限和状态的方法
+     * 使用自定义的 provider
+     * */
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.authenticationProvider(daoAuthenticationProvider());
     }
 
     @Override
@@ -119,17 +139,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .addFilter(jwtAuthenticationFilter())
                 //自定义登录拦截 用customAuthenticationFilter 替换 UsernamePasswordAuthenticationFilter
                 .addFilterAt(customAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
-                // 验证码过滤器放在登录拦截过滤器之前(该默认过滤器已被上述代码替换
+                // 验证码过滤器放在登录拦截过滤器之前(该默认过滤器已被上述代码替换)
                 .addFilterBefore(captchaFilter, UsernamePasswordAuthenticationFilter.class)
-                ;
-    }
-
-    /**
-     * 重写Spring Security获取当前用户的权限和状态的方法
-     * */
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(userDetailService);
+        ;
     }
 
     /**

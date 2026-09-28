@@ -6,7 +6,9 @@ import com.example.userlogin.model.*;
 import com.example.userlogin.handler.password.PasswordEncoder;
 import com.example.userlogin.service.*;
 import com.example.userlogin.service.Impl.WebSocketServerImpl;
+import com.example.userlogin.user.UserDetailServiceImpl;
 import com.example.userlogin.utils.RSAUtils;
+import com.example.userlogin.utils.RedisUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,10 +43,9 @@ public class UserController {
     @Autowired
     RoleService roleService;
     @Autowired
-    RoleAuthorityService roleAuthorityService;
+    private WsPushController wsPushController;
     @Autowired
-    AuthorityService authorityService;
-
+    private RedisUtil redisUtil;
 
     @PostMapping("/register")
     @ApiOperation("用户注册")
@@ -76,6 +77,9 @@ public class UserController {
             userRole.setUserId(userId);
             userRole.setRoleId(3L);//插入默认角色
             userRoleService.save(userRole);
+
+            //注册成功推送
+            wsPushController.pushByRole(1L, "register:" + sysUser.getAccount());
 
             return Result.succ("注册成功！");
 
@@ -158,7 +162,7 @@ public class UserController {
             }
         }
 
-        // ====================== 推送权限刷新 ======================
+        // 推送权限刷新
         WebSocketServerImpl.sendToUser(userId, "refreshPermissions");
 
         return Result2.success("更改用户角色成功！");
@@ -199,39 +203,23 @@ public class UserController {
             return Result2.error("查询所有用户失败!");
         }
     }
-    @PreAuthorize("hasAuthority('resource:all')||hasAuthority('resource:set')")
-    @PutMapping("/status")
-    @ApiOperation(("修改用户状态"))
+    @PreAuthorize("hasAuthority('resource:all') || hasAuthority('resource:set')")
+    @PutMapping("/updateStatusAndDisable")
+    @ApiOperation("修改用户状态")
     public Result2 updateUserStatus(@RequestBody SysUser sysuser){
+
+        String lockKey = UserDetailServiceImpl.LOCK_KEY + sysuser.getAccount();
+
+        // 手动解锁：立即清除Redis并在数据库解锁
+        if (sysuser.isStatus()) {
+            redisUtil.del(lockKey);
+        }
+
+        // 手动锁定：在数据库锁定，用户在登录时数据库被锁住的话会被立马添加Redis锁
         if (sysUserService.updateById(sysuser)){
             return Result2.success("更新状态成功！");
-        }
-        else return Result2.error("更新状态失败");
-    }
-
-    // ====================== 登录输错5次自动锁定 ======================
-    @PostMapping("/lockUserByErrorPwd")
-    @ApiOperation("密码输错5次自动锁定用户")
-    public Result2 lockUserByErrorPwd(@RequestBody SysUser sysUser) {
-
-        // 从请求体获取 account
-        String account = sysUser.getAccount();
-
-        // 根据账号查询用户
-        SysUser user = sysUserService.getByAccount(account);
-        if (user == null) {
-            return Result2.error("用户不存在");
-        }
-
-        // 直接锁定
-        user.setStatus(false);
-
-        // 更新
-        if (sysUserService.updateById(user)) {
-            return Result2.success("账号已自动锁定");
         } else {
-            return Result2.error("锁定失败");
+            return Result2.error("更新状态失败");
         }
     }
-
 }

@@ -26,7 +26,8 @@
         <img :src="captchaImg" alt="验证码" v-if="captchaImg" class="captcha-img"/>
       </div>
       <el-checkbox label="记住我" v-model="checked"></el-checkbox>
-      <el-button type="primary" style="width: 100%; margin-top: 5px" @click="submitLogin" :disabled="passwordErrorCount >= 5">{{ passwordErrorCount >= 5 ? '账号已锁定' : '登录' }}</el-button>
+      <!-- 移除禁用逻辑，正常显示登录按钮 -->
+      <el-button type="primary" style="width: 100%; margin-top: 5px" @click="submitLogin">登录</el-button>
       <el-button type="text" @click="goToRegister">没有账号？去注册</el-button>
     </el-form>
   </div>
@@ -79,8 +80,6 @@ export default {
   },
   data() {
     return {
-      // 密码错误次数
-      passwordErrorCount: 0,
       rules: {
         account: [{ required: true, message: "请输入账户名", trigger: 'blur' }],
         password: [{ required: true, message: "请输入密码", trigger: 'blur' }],
@@ -102,10 +101,10 @@ export default {
     this.checkJwtAndRedirect();
   },
   methods: {
-    // 检查 localStorage 有无 token，有就直接跳转
+    // 检查 会话存储/本地存储 有无token，有就直接跳转
     checkJwtAndRedirect() {
-      const token = localStorage.getItem("jwtToken");
-      const userId = localStorage.getItem("userId");
+      const token = sessionStorage.getItem("jwtToken") || localStorage.getItem("jwtToken");
+      const userId = sessionStorage.getItem("userId") || localStorage.getItem("userId");
 
       // 如果同时存在 token 和 userId，说明已登录
       if (token && userId) {
@@ -118,7 +117,7 @@ export default {
           this.captchaImg = `${resp.data.data.captcherImg}`;
           this.loginData.userKey = resp.data.data.userKey;
         } else {
-          this.$message.error(resp.data.msg);
+          this.$message.error(resp.data.data);
         }
       }).catch(error => {
         console.error('无响应:', error);
@@ -141,51 +140,39 @@ export default {
 
           this.postAnonymousRequest("/login", loginRequest).then(resp => {
             if (resp.data.code === 400) {
-              const msg = resp.data.data;
-
-              // ============== 修复：验证码错误不计数，只有密码错误才累计 ==============
-              if (msg.includes("验证码")) {
-                // 验证码错误 → 不计数，直接提示
-                this.$message.error(msg);
-              }
-              // 密码/账号错误 → 才计数
-              else if (msg.includes("密码") || msg.includes("账号")) {
-                this.passwordErrorCount++;
-                this.$message.error(`密码错误 ${this.passwordErrorCount}/5 次`);
-
-                // 达到5次 → 锁定
-                if (this.passwordErrorCount >= 5) {
-                  this.postAnonymousRequest("/sysUser/lockUserByErrorPwd", {
-                    account: this.loginData.account
-                  }).then(() => {
-                    this.$message.error("连续输错5次密码，账号已自动锁定！");
-                  });
-                }
-              }
-              else {
-                this.$message.error(msg);
-              }
-
+              this.$message.error(resp.data.data);
             } else {
-              // 登录成功 → 清空错误次数
               this.passwordErrorCount = 0;
+              const token = resp.data.data.jwt;
+              const userId = resp.data.data.userId;
+              const rememberMe = this.checked;
 
-              localStorage.setItem("userId", resp.data.data.userId);
-              localStorage.setItem("jwtToken", resp.data.data.jwt);
-              localStorage.setItem("rememberMe", this.checked);
+              // ====================== 核心修复：区分存储位置 ======================
+              // 勾选记住我 → localStorage（持久化，关闭浏览器不丢失）
+              // 不勾选记住我 → sessionStorage（刷新不丢失，关闭浏览器清空）
+              if (rememberMe) {
+                localStorage.setItem("userId", userId);
+                localStorage.setItem("jwtToken", token);
+                localStorage.setItem("rememberMe", "true");
+              } else {
+                sessionStorage.setItem("userId", userId);
+                sessionStorage.setItem("jwtToken", token);
+                localStorage.setItem("rememberMe", "false");
+              }
 
-              this.getRequest("/sysUser/RoleAndAndAuthority", { userId: localStorage.getItem("userId") }).then(userResp => {
+              // 获取角色权限并存储
+              this.getRequest("/sysUser/RoleAndAndAuthority", { userId: userId }).then(userResp => {
                 if (userResp.data.code === 200) {
-                  const userAccount = userResp.data.data.account;
-                  const userRoles = userResp.data.data.role;
-                  const userAuthorities = userResp.data.data.authority;
+                  const data = userResp.data.data;
+                  // 根据记住我状态选择存储位置
+                  const storage = rememberMe ? localStorage : sessionStorage;
 
-                  localStorage.setItem("userAccount", JSON.stringify(userAccount));
-                  localStorage.setItem("userRoles", JSON.stringify(userRoles));
-                  localStorage.setItem("userAuthorities", JSON.stringify(userAuthorities));
+                  storage.setItem("userAccount", JSON.stringify(data.account));
+                  storage.setItem("userRoles", JSON.stringify(data.role));
+                  storage.setItem("userAuthorities", JSON.stringify(data.authority));
 
                   this.$router.replace("/user");
-                  this.$message.success("欢迎" + userAccount + "登录!");
+                  this.$message.success("欢迎" + data.account + "登录!");
                 } else {
                   this.$message.error("获取用户角色和权限失败");
                 }
@@ -194,6 +181,9 @@ export default {
                 this.$message.error('获取用户角色和权限失败');
               });
             }
+          }).catch(err => {
+            this.$message.error('网络异常，请重试');
+            console.error(err);
           });
         } else {
           this.$message.error('请填写所有信息');

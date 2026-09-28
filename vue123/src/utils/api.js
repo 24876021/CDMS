@@ -1,10 +1,20 @@
 import axios from "axios";
 axios.defaults.withCredentials = true;
-//let baseUrl = "http://localhost:8082";
 let baseUrl = `http://${window.location.hostname}:8082`;
+
+// 优先从sessionStorage获取（未勾选记住我），其次从localStorage获取（勾选记住我）
+function getToken() {
+    return sessionStorage.getItem('jwtToken') || localStorage.getItem('jwtToken');
+}
+
+export function getUserId() {
+    return sessionStorage.getItem('userId') || localStorage.getItem('userId');
+}
+
+// 通用GET请求
 export const getRequest = (url, params) => {
-    const jwtToken = localStorage.getItem('jwtToken');
-    console.log(jwtToken);
+    const jwtToken = getToken();
+    //console.log(jwtToken);
     return axios({
         method: "get",
         url: `${baseUrl}${url}`,
@@ -14,6 +24,8 @@ export const getRequest = (url, params) => {
         }
     })
 }
+
+// 获取验证码请求（无token）
 export const getCaptcha1 = (url, params) => {
     return axios({
         method: "get",
@@ -24,8 +36,10 @@ export const getCaptcha1 = (url, params) => {
         }
     })
 }
+
+// 通用POST请求
 export const postRequest = (url, params) => {
-    const jwtToken = localStorage.getItem('jwtToken');
+    const jwtToken = getToken();
     return axios({
         method: "post",
         url: `${baseUrl}${url}`,
@@ -35,8 +49,10 @@ export const postRequest = (url, params) => {
         }
     })
 }
+
+// 通用PUT请求
 export const putRequest = (url, params) => {
-    const jwtToken = localStorage.getItem('jwtToken');
+    const jwtToken = getToken();
     return axios({
         method: "put",
         url: `${baseUrl}${url}`,
@@ -46,8 +62,10 @@ export const putRequest = (url, params) => {
         }
     })
 }
+
+// 权限修改专用PUT请求
 export const putAuthorityRequest = (url, params) => {
-    const jwtToken = localStorage.getItem('jwtToken');
+    const jwtToken = getToken();
     return axios({
         method: "put",
         url: `${baseUrl}${url}`,
@@ -57,18 +75,21 @@ export const putAuthorityRequest = (url, params) => {
         }
     })
 }
+
+// 通用DELETE请求
 export const deleteRequest = (url, params) => {
-    const jwtToken = localStorage.getItem('jwtToken');
-    console.log(jwtToken);
+    const jwtToken = getToken();
     return axios({
         method: "delete",
         url: `${baseUrl}${url}`,
-        data: params, // 注意：delete 请求的 body 数据放在 data 字段中
+        data: params,
         headers: {
             Authorization: jwtToken
         }
     })
 }
+
+// 匿名POST请求（登录/注册使用）
 export const postAnonymousRequest = (url, params) => {
     return axios({
         method: "post",
@@ -79,9 +100,9 @@ export const postAnonymousRequest = (url, params) => {
         }
     });
 };
+
+// 匿名GET请求
 export const getAnonymousRequest = (url, params) => {
-    const jwtToken = localStorage.getItem('jwtToken');
-    console.log(jwtToken);
     return axios({
         method: "get",
         url: `${baseUrl}${url}`,

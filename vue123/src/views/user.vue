@@ -10,13 +10,15 @@
         </div>
       </el-header>
       <el-main>
+        <!-- 患者ID/姓名查询搜索框 -->
         <el-row v-if="activeTab === 'first'">
           <el-col :span="12">
-            <el-input v-if="hasGetPermission" v-model="searchQuery" placeholder="请输入患者ID或姓名" clearable style="width: 200px;" @keydown.enter.native="searchUser"></el-input>
+            <el-input v-if="hasGetPermission" v-model="searchQuery" placeholder="患者ID/姓名/身份证号" clearable style="width: 200px;" @keydown.enter.native="searchUser"></el-input>
             <el-button v-if="hasGetPermission" type="primary" @click="searchUser">查询</el-button>
           </el-col>
         </el-row>
 
+        <!-- 身份证号查询搜索框 -->
         <el-row v-if="activeTab === 'five'">
           <el-col :span="12">
             <el-input v-if="hasGetPermission" v-model="idCardNumber" placeholder="请输入身份证号" clearable style="width: 200px;" />
@@ -25,11 +27,12 @@
         </el-row>
 
         <el-tabs v-model="activeTab">
+          <!-- 患者信息标签页 -->
           <el-tab-pane v-if=hasDoctorRole label="患者信息" name="first">
             <el-button v-if="hasGetPermission" type="primary" icon="el-icon-refresh-right" @click="getAllUsers(true)">刷新</el-button>
             <div style="margin-top: 20px;"></div>
 
-            <!-- 👇 这里是新增的滚动容器：超过3条自动出现滚动条 -->
+            <!-- 滚动容器：超过3条自动出现滚动条 -->
             <div
                 :style="{
       maxHeight: patients.length > 3 ? '400px' : 'auto',
@@ -73,7 +76,7 @@
                 </el-table-column>
               </el-table>
             </div>
-            <!-- 👆 滚动容器结束 -->
+            <!-- 滚动容器结束 -->
 
             <!--分页控件-->
             <el-pagination
@@ -86,24 +89,54 @@
                 :total="total">
             </el-pagination>
           </el-tab-pane>
+
+          <!-- 用户信息标签页 -->
           <el-tab-pane v-if=hasAdminRole label="用户信息" name="second">
             <div style="margin-top: 20px;"></div>
             <el-row :gutter="20">
               <el-col :span="6" v-for="(user) in users" :key="user.userId">
                 <div style="margin-bottom: 20px;"></div>
-                <el-card class="box-card">
+                <!-- 卡片设置相对定位，用于右上角图标定位 -->
+                <el-card class="box-card" style="position: relative;">
+                  <!-- 锁按钮在卡牌右上角，纯图标，悬浮提示解锁/锁定 -->
+                  <div style="position: absolute; top: 10px; right: 15px; z-index: 9;">
+                    <el-button :class="['lock-btn',user.status === 'false' ? 'lock-closed' : 'lock-opened']"
+                    style="background:transparent; border:none; padding:0;"
+                    @click="updateUserStatus(user.userId, 'status', user.status === 'true' ? 'false' : 'true')"
+                    :title="user.status === 'true' ? '锁定' : '解锁'"
+                    >
+                    <i
+                        :class="user.status === 'true' ? 'el-icon-unlock' : 'el-icon-lock'"
+                        class="big-lock-icon"
+                    ></i>
+                    </el-button>
+                  </div>
+
                   <div slot="header" class="clearfix">
                     <span>{{ user.name }}</span>
                   </div>
                   <div v-for="col in userColumns" :key="col.prop" class="text item">
-                    <span>{{ col.label }}: {{ user[col.prop] }}</span>
-                    <el-switch
-                        v-if="col.prop === 'status' || col.prop === 'disable'"
-                        v-model="user[col.prop]"
-                        active-value="true"
-                        inactive-value="false"
-                        @change="updateUserStatus(user.userId, col.prop, user[col.prop])"
-                    ></el-switch>
+                    <template v-if="col.prop === 'status'">
+                    </template>
+
+                    <!-- ====================== 是否启用 el-switch 开关 ====================== -->
+                    <template v-else-if="col.prop === 'disable'">
+                      <span>{{ col.label }}:</span>
+                      <el-switch
+                          v-model="user.disable"
+                          active-value="true"
+                          inactive-value="false"
+                          active-color="#67c23a"
+                          inactive-color="#f56c6c"
+                          style="margin-left: 10px;"
+                          @change="updateUserStatus(user.userId, 'disable', user.disable)"
+                      >
+                      </el-switch>
+                    </template>
+                    <!-- ====================== 开关结束 ====================== -->
+                    <template v-else>
+                      <span>{{ col.label }}: {{ user[col.prop] }}</span>
+                    </template>
                   </div>
                   <div>
                     <el-checkbox-group v-model="user.selectedRoles" @change="updateUserRoles(user)">
@@ -116,6 +149,8 @@
               </el-col>
             </el-row>
           </el-tab-pane>
+
+          <!-- 添加患者标签页 -->
           <el-tab-pane v-if=hasDoctorRole label="添加患者" name="third">
             <el-form label-width="80px" :model="addUserParams" :rules="rules" ref="addUserForm">
               <el-form-item v-for="item in formItems" :key="item.prop" :label="item.label" :prop="item.prop">
@@ -145,6 +180,8 @@
             </el-form>
             <div class="hg"></div>
           </el-tab-pane>
+
+          <!-- 角色管理标签页 -->
           <el-tab-pane v-if=hasAdminRole label="角色管理" name="four">
             <div style="margin-top: 20px;"></div>
 
@@ -170,6 +207,8 @@
               </el-col>
             </el-row>
           </el-tab-pane>
+
+          <!-- 指定患者信息标签页 -->
           <el-tab-pane v-if="hasPatientRole" label="指定患者信息" name="five">
             <el-table :data="selectedPatient" style="width: 100%; border-radius: 5px;">
               <el-table-column v-for="col in columns" :key="col.prop" :prop="col.prop" :label="col.label" :width="col.width" align="center">
@@ -188,21 +227,31 @@
         </el-tabs>
       </el-main>
     </el-container>
+
     <!-- 右上角用户信息列表 -->
     <div class="top-right-dropdown">
       <el-dropdown @command="handleCommand">
-        <span class="el-dropdown-link">
-          {{ currentUser.name }}<i class="el-icon-arrow-down el-icon--right"></i>
-        </span>
+    <span class="el-dropdown-link">
+      {{ currentUser.name }}<i class="el-icon-arrow-down el-icon--right"></i>
+    </span>
         <el-dropdown-menu slot="dropdown">
-          <!-- 遍历用户信息项，包含新增的角色项 -->
-          <el-dropdown-item v-for="item in userInfoItems" :key="item.prop" :command="item.prop">
-            {{ item.label }}: {{ item.prop === 'roleNames' ? currentUser.roleNames : currentUser[item.prop] }}
+          <!-- 展示昵称、账户、角色、登出 -->
+          <el-dropdown-item command="name">
+            用户昵称：{{ currentUser.name }}
           </el-dropdown-item>
-          <el-dropdown-item command="logout">登出</el-dropdown-item>
+          <el-dropdown-item command="account">
+            账户：{{ currentUser.account }}
+          </el-dropdown-item>
+          <el-dropdown-item command="roleNames">
+            用户角色：{{ currentUser.roleNames }}
+          </el-dropdown-item>
+          <el-dropdown-item divided command="logout">
+            登出
+          </el-dropdown-item>
         </el-dropdown-menu>
       </el-dropdown>
     </div>
+
     <!-- 病历信息弹窗 -->
     <el-dialog
         title="病历信息"
@@ -210,16 +259,38 @@
         width="50%"
         @close="resetMedicalDialog"
     >
-      <!-- 👇 所有按钮放在这里（不截图） -->
+      <!-- 所有按钮放在这里（不截图） -->
       <div v-for="(record, index) in medicalRecord" :key="index" style="margin-bottom:10px;">
         <el-button v-if="hasGetPermission" type="success" icon="el-icon-money" @click="openBillingRecordDialog(record.recordId)">费用查询</el-button>
-        <el-button v-if="hasSetPermission" type="primary" @click="openAddBillingRecordDialog(record.recordId)">添加费用信息</el-button>
+
+        <!-- 费用添加按钮：已有记录 → 灰色实心、禁用 -->
+        <el-button
+            v-if="hasSetPermission"
+            :class="{ 'disabled-gray-btn': hasBillingRecord }"
+            :disabled="hasBillingRecord"
+            icon="el-icon-plus"
+            @click="openAddBillingRecordDialog(record.recordId)"
+        >
+          {{ hasBillingRecord ? '已添加费用' : '添加费用信息' }}
+        </el-button>
+
         <el-button v-if="hasGetPermission" type="success" icon="el-icon-money" @click="openMedicationRecordDialog(record.recordId)">用药查询</el-button>
-        <el-button v-if="hasSetPermission" type="primary" @click="openAddMedicationRecordDialog(record.recordId)">添加用药信息</el-button>
-        <el-button v-if="hasGetPermission" type="info" icon="el-icon-download" @click="downloadMedicalImage">下载病历</el-button>
+
+        <!-- 用药添加按钮：已有记录 → 灰色实心、禁用 -->
+        <el-button
+            v-if="hasSetPermission"
+            :class="{ 'disabled-gray-btn': hasMedicationRecord }"
+            :disabled="hasMedicationRecord"
+            icon="el-icon-plus"
+            @click="openAddMedicationRecordDialog(record.recordId)"
+        >
+          {{ hasMedicationRecord ? '已添加用药' : '添加用药信息' }}
+        </el-button>
+
+        <el-button v-if="hasGetPermission" type="primary" icon="el-icon-download" @click="downloadMedicalImage">下载病历</el-button>
       </div>
 
-      <!-- 👇 只有病历内容，独立ref，只截图这里！！！ -->
+      <!-- 只有病历内容，独立ref，只截图这里 -->
       <div ref="medicalContent" style="padding: 10px 0;">
         <el-form label-width="120px">
           <el-form-item
@@ -240,7 +311,7 @@
         </el-form>
       </div>
 
-      <!-- 分页 -->
+      <!-- 病历分页 -->
       <el-pagination
           style="margin-top:15px;text-align:center"
           @size-change="handleMedicalRecordSizeChange"
@@ -253,7 +324,7 @@
       ></el-pagination>
     </el-dialog>
 
-    <!-- 添加病历信息弹窗 - 修改为年月日下拉框 -->
+    <!-- 添加病历信息弹窗 - 年月日下拉框 -->
     <el-dialog
         title="添加病历"
         :visible.sync="addMedicalRecordDialogVisible"
@@ -354,10 +425,10 @@
 
       <!-- 下载按钮 -->
       <div style="margin-bottom:10px;">
-        <el-button v-if="hasGetPermission" type="info" icon="el-icon-download" @click="downloadBillingImage">下载费用单</el-button>
+        <el-button v-if="hasGetPermission" type="primary" icon="el-icon-download" @click="downloadBillingImage">下载费用单</el-button>
       </div>
 
-      <!-- 👇 费用内容，加 ref -->
+      <!-- 费用内容，加 ref -->
       <div ref="billingContent" style="padding: 10px 0;">
         <el-form label-width="120px">
           <el-form-item v-for="(col, index) in billingColumns" :key="index">
@@ -369,6 +440,7 @@
       </div>
     </el-dialog>
 
+    <!-- 费用信息添加弹窗 -->
     <el-dialog
         title="费用信息添加"
         :visible.sync="addBillingRecordDialogVisible"
@@ -404,10 +476,10 @@
 
       <!-- 下载按钮 -->
       <div style="margin-bottom:10px;">
-        <el-button v-if="hasGetPermission" type="info" icon="el-icon-download" @click="downloadMedicationImage">下载用药单</el-button>
+        <el-button v-if="hasGetPermission" type="primary" icon="el-icon-download" @click="downloadMedicationImage">下载用药单</el-button>
       </div>
 
-      <!-- 👇 用药内容，加 ref -->
+      <!-- 用药内容，加 ref -->
       <div ref="medicationContent" style="padding: 10px 0;">
         <el-form label-width="120px">
           <el-form-item v-for="(col, index) in medicationColumns" :key="index">
@@ -489,8 +561,7 @@ export default {
       roles: [], // 所有角色列表
       allAuthorities: [], // 所有权限列表
       patients: [],
-      //身份证指定患者存储
-      selectedPatient:[],
+      selectedPatient:[], //身份证指定患者存储
       users: [],
       addUserParams: {
         patientId: null,
@@ -501,13 +572,14 @@ export default {
         idCardNumber: null,
         contactNumber: null,
         address: null,
-        year: null,  // 新增：年份
-        month: null, // 新增：月份
-        day: null    // 新增：日期
+        year: null,  // 年份
+        month: null, // 月份
+        day: null    // 日期
       },
       options: [{ value: '男', label: '男' }, { value: '女', label: '女' }],
       searchQuery: '',
       idCardNumber:'',
+      // 患者信息表格列
       columns: [
         { prop: 'patientId', label: '患者ID', width: '90px' },
         { prop: 'name', label: '患者姓名', width: '100px' },
@@ -539,6 +611,7 @@ export default {
       tempStartDate: { year: null, month: null, day: null },
       tempEndDate: { year: null, month: null, day: null },
 
+      // 病历展示列
       medicalColumns: [
         { prop: 'visitDate', label: '就诊日期：' },
         { prop: 'chiefComplaint', label: '主诉：' },
@@ -552,12 +625,14 @@ export default {
         { prop: 'dischargeDiagnosis', label: '出院诊断：' },
         { prop: 'dischargeInstructions', label: '出院医嘱：' }
       ],
+      // 费用展示列
       billingColumns: [
         { prop: 'itemName', label: '费用项目名称：' },
         { prop: 'itemCost', label: '费用金额：' },
         { prop: 'paymentMethod', label: '支付方式：' },
         { prop: 'insuranceInfo', label: '保险信息：' }
       ],
+      // 用药展示列
       medicationColumns:[
         { prop: 'drugName', label: '药品名称：' },
         { prop: 'dosage', label: '剂量：' },
@@ -565,11 +640,12 @@ export default {
         { prop: 'startDate', label: '开始日期：' },
         { prop: 'endDate', label: '结束日期：' }
       ],
+      // 去除是否正常显示，仅占位
       userColumns: [
         { prop: 'userId', label: '用户ID', width: '70px' },
         { prop: 'name', label: '用户昵称', width: '80px' },
         { prop: 'account', label: '账号', width: '100px' },
-        { prop: 'status', label: '是否正常', width: '60px' },
+        { prop: 'status', label: '状态', width: '0px' },
         { prop: 'disable', label: '是否启用', width: '80px' }
       ],
       //添加患者信息表格列
@@ -588,9 +664,18 @@ export default {
       dateYears: Array.from({length: new Date().getFullYear() - 1900 + 6}, (_, i) => 1900 + i),
       // 月份下拉选项
       months: Array.from({length: 12}, (_, i) => i + 1),
+      // 添加患者表单校验规则
       rules: {
         name: [
-          { required: true, message: '请输入姓名', trigger: 'blur' }
+          { required: true, message: '请输入姓名', trigger: 'blur' },
+          { validator: (rule, value, callback) => {
+              const val = (value || '').trim();
+              if (/^\d+$/.test(val)) {
+                callback(new Error('姓名不能是纯数字！'));
+              } else {
+                callback();
+              }
+            }, trigger: 'blur' }
         ],
         gender: [
           { required: true, message: '请选择性别', trigger: 'change' }
@@ -599,7 +684,6 @@ export default {
           { required: true, message: '请选择出生日期', trigger: 'change' }
         ],
         age: [
-          // 移除年龄的必填验证，改为自动计算
           { required: false }
         ],
         idCardNumber: [
@@ -612,6 +696,7 @@ export default {
           { required: true, message: '请输入地址', trigger: 'blur' }
         ]
       },
+      // 费用记录校验规则
       billingRecordRules:{
         itemName: [
           { required: true, message: '请输入费用项目名称', trigger: 'blur' }
@@ -626,6 +711,7 @@ export default {
           { required: true, message: '请输入保险信息', trigger: 'blur' }
         ]
       },
+      // 用药记录校验规则
       medicationRecordRules:{
         drugName: [
           { required: true, message: '请输入药品名称', trigger: 'blur' }
@@ -643,6 +729,7 @@ export default {
           { required: true, message: '请选择结束日期', trigger: 'change' }
         ]
       },
+      // 添加病历校验规则
       addMedicalRecordRules: {
         patientId: [
           { required: true, message: '请输入患者 ID', trigger: 'blur' }
@@ -683,23 +770,18 @@ export default {
       },
       activeTab: 'first',
       currentUser: [],
-      // 新增：添加用户角色项
-      userInfoItems: [
-        { prop: 'userId', label: '用户ID' },
-        { prop: 'name', label: '用户昵称' },
-        { prop: 'account', label: '账号' },
-        { prop: 'status', label: '是否正常' },
-        { prop: 'disable', label: '是否启用' },
-        { prop: 'roleNames', label: '用户角色' } // 新增角色项
-      ],
       currentPage: 1,
       pageSize: 10,
       total: 0,
 
+      // 标记是否已有费用/用药记录，用于按钮禁用
+      hasBillingRecord: false,
+      hasMedicationRecord: false,
+
       totalRecords: 0, // 病历总记录数
       medicalCurrentPage: 1,  // 当前病历页数
       medicalPageSize: 1,    // 每页病历条数
-      // ====================== 新增：WebSocket 实例 ======================
+      // WebSocket 实例
       ws: null,
       // 后端WebSocket地址（根据实际部署修改）
       wsUrl: process.env.NODE_ENV === 'development'
@@ -708,13 +790,12 @@ export default {
     }
   },
   mounted() {
-    // ====================== 新增：JWT 登录校验 ======================
-    const token = localStorage.getItem('jwtToken');
-    // 如果没有 token，直接跳转到登录页
+    // 统一获取token
+    const token = sessionStorage.getItem('jwtToken') || localStorage.getItem('jwtToken');
     if (!token) {
       this.$message.warning('请先登录！');
-      this.$router.replace('/'); // 返回登录页
-      return; // 停止执行后面的逻辑
+      this.$router.replace('/');
+      return;
     }
 
     this.getAllUsers(false);
@@ -722,43 +803,52 @@ export default {
     this.fetchCurrentUser();
     this.getRoles(); // 获取所有角色
     this.getAllAuthorities(); // 获取所有权限
-    // ====================== 新增：建立WebSocket连接 ======================
+    // 建立WebSocket连接
     this.initWebSocket();
   },
   computed: {
+    // 获取用户角色
     userRoles() {
-      return JSON.parse(localStorage.getItem("userRoles")) || [];
+      return JSON.parse(sessionStorage.getItem("userRoles") || localStorage.getItem("userRoles") || '[]');
     },
+    // 获取用户权限
     userAuthorities() {
-      return JSON.parse(localStorage.getItem("userAuthorities")) || [];
+      return JSON.parse(sessionStorage.getItem("userAuthorities") || localStorage.getItem("userAuthorities") || '[]');
     },
+    // 查询权限判断
     hasGetPermission() {
       return this.userAuthorities.includes('resource:get')|| this.userAuthorities.includes('all');
     },
+    // 编辑权限判断
     hasSetPermission() {
       return this.userAuthorities.includes('resource:set')|| this.userAuthorities.includes('all');
     },
+    // 删除权限判断
     hasRemovePermission() {
       return this.userAuthorities.includes('resource:remove')|| this.userAuthorities.includes('all');
     },
+    // 管理员角色判断
     hasAdminRole() {
       return this.userRoles.includes('admin')|| this.userRoles.includes('test 1');
     },
+    // 医生角色判断
     hasDoctorRole() {
       return this.userRoles.includes('doctor')|| this.userRoles.includes('test 1');
     },
+    // 患者角色判断
     hasPatientRole() {
       return this.userRoles.includes('patient')|| this.userRoles.includes('test 1');
     }
   },
   beforeDestroy() {
-    // ====================== 新增：页面销毁关闭WebSocket ======================
+    // 页面销毁关闭WebSocket
     this.closeWebSocket();
   },
   methods: {
-    // ====================== 新增：WebSocket初始化 ======================
+    // WebSocket初始化
     initWebSocket() {
-      const userId = localStorage.getItem('userId');
+      // 统一获取userId
+      const userId = this.getUserId();
       if (!userId) {
         this.$message.warning('用户未登录，无法建立实时连接');
         return;
@@ -780,11 +870,8 @@ export default {
         // 收到强制下线指令
         if (msg === 'forceLogout') {
           this.$message.warning('账号已被管理员禁用，即将强制下线！');
-          // 清除所有登录信息
-          localStorage.removeItem('jwtToken');
-          localStorage.removeItem('userId');
-          localStorage.removeItem('userRoles');
-          localStorage.removeItem('userAuthorities');
+          localStorage.clear();
+          sessionStorage.clear();
 
           // 延迟跳转到登录页
           setTimeout(() => {
@@ -794,9 +881,28 @@ export default {
           return;
         }
 
-        // 后端推送刷新指令，执行权限刷新
+        // 收到权限刷新指令
         if (msg === 'refreshPermissions') {
           this.refreshUserPermissions();
+        }
+
+        // 处理用户状态变更推送
+        if (msg.startsWith('register:')) {
+          const account = msg.split(':')[1];
+          this.$message.success(`新用户注册：${account}`);
+          this.getAllSysUsers(true); // 刷新管理员用户列表
+        }
+
+        if (msg.startsWith('lock:')) {
+          const account = msg.split(':')[1];
+          this.$message.warning(`用户已锁定：${account}`);
+          this.getAllSysUsers(true); // 刷新管理员用户列表
+        }
+
+        if (msg.startsWith('unlock:')) {
+          const account = msg.split(':')[1];
+          this.$message.success(`用户已解锁：${account}`);
+          this.getAllSysUsers(true); // 刷新管理员用户列表
         }
       };
 
@@ -811,7 +917,7 @@ export default {
       };
     },
 
-    // ====================== 新增：关闭WebSocket ======================
+    // 关闭WebSocket
     closeWebSocket() {
       if (this.ws) {
         this.ws.close();
@@ -819,18 +925,20 @@ export default {
       }
     },
 
-    // ====================== 新增：刷新用户权限（核心方法） ======================
+    // 刷新用户权限
     refreshUserPermissions() {
-      const userId = localStorage.getItem('userId');
+      // 统一获取userId
+      const userId = this.getUserId();
       if (!userId) return;
 
       // 1. 重新获取最新角色和权限
       this.getRequest(`/sysUser/RoleAndAndAuthority?userId=${userId}`).then(resp => {
         if (resp.data.code === 200) {
           const data = resp.data.data;
+          const storage = sessionStorage.getItem('jwtToken') ? sessionStorage : localStorage;
           // 2. 覆盖本地存储的角色和权限
-          localStorage.setItem('userRoles', JSON.stringify(data.role));
-          localStorage.setItem('userAuthorities', JSON.stringify(data.authority));
+          storage.setItem('userRoles', JSON.stringify(data.role));
+          storage.setItem('userAuthorities', JSON.stringify(data.authority));
 
           // 3. 提示用户权限已更新
           this.$message.success('权限已更新，页面已自动刷新！');
@@ -914,7 +1022,7 @@ export default {
         }
       });
     },
-    // 病历就诊日期变化处理，并手动验证
+    // 病历就诊日期变化处理
     handleVisitDateChange() {
       if (this.tempVisitDate.year && this.tempVisitDate.month && this.tempVisitDate.day) {
         this.medicalRecord.visitDate = `${this.tempVisitDate.year}-${String(this.tempVisitDate.month).padStart(2, '0')}-${String(this.tempVisitDate.day).padStart(2, '0')}`;
@@ -928,7 +1036,7 @@ export default {
         }
       });
     },
-    // 病历出院日期变化处理，并手动验证（非必填，但清除错误）
+    // 病历出院日期变化处理
     handleDischargeDateChange() {
       if (this.tempDischargeDate.year && this.tempDischargeDate.month && this.tempDischargeDate.day) {
         this.medicalRecord.dischargeDate = `${this.tempDischargeDate.year}-${String(this.tempDischargeDate.month).padStart(2, '0')}-${String(this.tempDischargeDate.day).padStart(2, '0')}`;
@@ -942,7 +1050,7 @@ export default {
         }
       });
     },
-    // 用药开始日期变化处理，并手动验证
+    // 用药开始日期变化处理
     handleStartDateChange() {
       if (this.tempStartDate.year && this.tempStartDate.month && this.tempStartDate.day) {
         this.medicationRecord.startDate = `${this.tempStartDate.year}-${String(this.tempStartDate.month).padStart(2, '0')}-${String(this.tempStartDate.day).padStart(2, '0')}`;
@@ -956,7 +1064,7 @@ export default {
         }
       });
     },
-    // 用药结束日期变化处理，并手动验证
+    // 用药结束日期变化处理
     handleEndDateChange() {
       if (this.tempEndDate.year && this.tempEndDate.month && this.tempEndDate.day) {
         this.medicationRecord.endDate = `${this.tempEndDate.year}-${String(this.tempEndDate.month).padStart(2, '0')}-${String(this.tempEndDate.day).padStart(2, '0')}`;
@@ -985,7 +1093,7 @@ export default {
         }
       });
     },
-    // 关闭病历弹窗时重置所有状态（核心修复）
+    // 关闭病历弹窗时重置所有状态
     resetMedicalDialog() {
       this.dialogVisible = false;
       // 清空病历数据
@@ -996,6 +1104,9 @@ export default {
       this.medicalCurrentPage = 1;
       // 重置总记录数
       this.totalRecords = 0;
+      // 重置费用/用药记录状态
+      this.hasBillingRecord = false;
+      this.hasMedicationRecord = false;
     },
     // 重置添加用药弹窗数据
     resetAddMedicationRecordDialog() {
@@ -1024,7 +1135,7 @@ export default {
         }
       });
     },
-    // 弹窗打开时的回调（可选，确保表单引用存在）
+    // 弹窗打开时的回调
     onAddMedicalRecordDialogOpened() {
       this.$nextTick(() => {
         if (this.$refs.addMedicalRecordForm) {
@@ -1039,6 +1150,7 @@ export default {
         }
       });
     },
+    // 身份证查询患者
     searchByIdCardNumber() {
       // 发送查询请求
       this.getRequest(`/patient/idCardNumber?idCardNumber=${this.idCardNumber}`)
@@ -1090,7 +1202,7 @@ export default {
     closeBillingRecordDialog() {
       this.billingDialogVisible = false; // 关闭费用弹窗
     },
-// 查询费用记录
+    // 查询费用记录
     queryBillingRecord(recordId) {
       this.getRequest(`/BillingRecord?recordId=${recordId}`).then((resp) => {
         if (resp.data.code === 200) {
@@ -1127,7 +1239,7 @@ export default {
     closeMedicationRecordDialog() {
       this.medicationDialogVisible = false; // 关闭费用弹窗
     },
-// 查询用药记录
+    // 查询用药记录
     queryMedicationRecord(recordId) {
       this.getRequest(`/MedicationRecord?recordId=${recordId}`).then((resp) => {
         if (resp.data.code === 200) {
@@ -1144,24 +1256,39 @@ export default {
         this.medicationDialogVisible = false;
       });
     },
-// 分页查询病历信息
+    // 分页查询病历信息
     queryMedicalRecord(patientId) {
       this.getRequest(`/MedicalRecordPage?current=${this.medicalCurrentPage}&size=${this.medicalPageSize}&patientId=${patientId}`).then(resp => {
         if (resp.data.code === 200) {
           this.medicalRecord = resp.data.data.records;
           this.totalRecords = resp.data.data.total;
-          // 有数据才打开弹窗
+
+          // 如果有病历，检查是否已有费用/用药记录
+          if (this.medicalRecord.length > 0) {
+            const recordId = this.medicalRecord[0].recordId;
+            // 查询费用单是否存在
+            this.getRequest(`/BillingRecord?recordId=${recordId}`).then(res => {
+              this.hasBillingRecord = res.data.code === 200;
+            }).catch(() => this.hasBillingRecord = false);
+
+            // 查询用药单是否存在
+            this.getRequest(`/MedicationRecord?recordId=${recordId}`).then(res => {
+              this.hasMedicationRecord = res.data.code === 200;
+            }).catch(() => this.hasMedicationRecord = false);
+          } else {
+            this.hasBillingRecord = false;
+            this.hasMedicationRecord = false;
+          }
+          // =====================================================
+
           this.dialogVisible = true;
         } else {
-          // 无数据：只提示，不打开弹窗
           this.$message.error("未找到指定病历");
-          // 强制关闭弹窗（防止残留）
           this.dialogVisible = false;
         }
       }).catch(error => {
         console.error('查询病历失败:', error);
         this.$message.error('查询病历失败');
-        // 查询失败也不打开
         this.dialogVisible = false;
       });
     },
@@ -1188,7 +1315,7 @@ export default {
               year,
               month,
               day,
-              age: age || patient.age // 使用计算的年龄，没有则用原有值
+              age: age || patient.age // 使用计算的年龄
             };
           });
           this.total = resp.data.data.total;
@@ -1293,7 +1420,6 @@ export default {
     addUser() {
       this.$refs.addUserForm.validate((valid) => {
         if (valid) {
-          // 确保出生日期和年龄已正确设置
           this.handleAddBirthDateChange();
           this.postRequest("/patient/user", this.addUserParams).then(resp => {
             if (resp.data.code === 200) {
@@ -1319,7 +1445,8 @@ export default {
               // 直接显示后端返回的错误信息
               this.$message.error(resp.data.msg || "添加失败!");
             }
-          }).catch(err => {
+          }).catch(err => {// eslint-disable-line no-unused-vars
+            //还没写处理网路异常的代码，留待以后
             this.$message.error("网络异常，添加失败");
           })
         } else {
@@ -1332,7 +1459,9 @@ export default {
     submitLogout() {
       this.getAnonymousRequest('/logout').then(resp => {
         if (resp.data.code === 200) {
-          localStorage.removeItem('jwtToken');
+          // 彻底清空
+          localStorage.clear();
+          sessionStorage.clear();
           this.$router.replace("/");
           this.$message.success(resp.data.data);
         }
@@ -1443,17 +1572,37 @@ export default {
         user.editing = true;
       }
     },
-    //查询患者
+    // 查询患者（兼容写好的ID/姓名 + 新增身份证，无任何校验，测试用）
     searchUser() {
       if (this.searchQuery === '') {
-        this.$message.warning("请输入患者ID或姓名");
+        this.$message.warning("请输入患者ID/姓名/身份证号");
         return;
       }
-      const isId = /^\d+$/.test(this.searchQuery);
+
+      const input = this.searchQuery.trim();
+
+      // 先尝试身份证查询
+      this.getRequest(`/patient/idCardNumber?idCardNumber=${input}`).then(res => {
+        if (res.data.code === 200) {
+          // 身份证查到了 → 展示
+          this.patients = Array.isArray(res.data.data) ? res.data.data : [res.data.data];
+          this.$message.success("身份证查询成功！");
+        } else {
+          // 没查到 → 走 ID/姓名 查询
+          this.oldSearch(input);
+        }
+      }).catch(() => {
+        // 接口报错 → 走ID/姓名查询
+        this.oldSearch(input);
+      })
+    },
+
+// 查询逻辑（ID/姓名）
+    oldSearch(input) {
+      const isId = /^\d+$/.test(input);
       const queryParam = isId ? 'patientId' : 'name';
-      this.getRequest(`/patient/user?${queryParam}=${this.searchQuery}`).then(resp => {
+      this.getRequest(`/patient/user?${queryParam}=${input}`).then(resp => {
         if (resp.data.code === 200) {
-          // 解析出生日期为年月日，并计算年龄
           const formatPatients = (data) => {
             return Array.isArray(data) ? data.map(patient => {
               const birthDate = patient.birthDate;
@@ -1463,15 +1612,12 @@ export default {
                 year = parseInt(dateParts[0]);
                 month = parseInt(dateParts[1]);
                 day = parseInt(dateParts[2]);
-                // 计算年龄
                 age = this.calculateAge(year, month, day);
               }
               return {
                 ...patient,
                 editing: false,
-                year,
-                month,
-                day,
+                year, month, day,
                 age: age || patient.age
               };
             }) : [{
@@ -1483,8 +1629,7 @@ export default {
               age: data.birthDate ? this.calculateAge(
                   parseInt(data.birthDate.split('-')[0]),
                   parseInt(data.birthDate.split('-')[1]),
-                  parseInt(data.birthDate.split('-')[2])
-              ) : data.age
+                  parseInt(data.birthDate.split('-')[2])) : data.age
             }];
           };
           this.patients = formatPatients(resp.data.data);
@@ -1492,30 +1637,38 @@ export default {
         } else {
           this.$message.error(resp.data.msg);
         }
-      }).catch(error => {
-        console.error('无响应:', error);
-        if (error.response) {
-          console.error('服务器错误:', error.response.data);
-          this.$message.error('查询失败: ' + error.response.data.message);
-        } else {
-          this.$message.error('查询失败');
-        }
-      });
+      })
     },
-    //更新用户状态
     // 更新用户状态
     updateUserStatus(userId, prop, value) {
       const status = value === 'true';
       const otherProp = prop === 'status' ? 'disable' : 'status';
       const otherValue = this.users.find(user => user.userId === userId)[otherProp];
 
-      this.putRequest(`/sysUser/status`, {
+      this.putRequest(`/sysUser/updateStatusAndDisable`, {
         userId,
         [prop]: status,
         [otherProp]: otherValue === 'true'
       }).then(resp => {
         if (resp.data.code === 200) {
-          this.$message.success("状态更新成功!");
+          // ====================== 这里开始修改提示 ======================
+          let msg = "";
+          if (prop === "status") {
+            // 锁定/解锁 提示
+            msg = status ? "用户已解锁" : "用户已锁定";
+          } else if (prop === "disable") {
+            // 启用/禁用 提示
+            msg = status ? "用户已启用" : "用户已禁用";
+          }
+          this.$message.success(msg);
+          // ====================== 修改结束 ======================
+
+          // 前端实时刷新状态
+          const user = this.users.find(u => u.userId === userId);
+          if (user) {
+            user[prop] = value;
+          }
+          // 禁用时踢人
           if (prop === 'disable' && status === false) {
             this.getRequest(`/ws/kickUser/${userId}`).then(() => {});
           }
@@ -1527,9 +1680,19 @@ export default {
         this.$message.error('状态更新失败');
       });
     },
-    //获取登录用户基本信息（新增：获取角色信息）
+    //获取登录用户基本信息
     fetchCurrentUser() {
-      const userId = localStorage.getItem('userId');
+      // 统一从 session / local 读取 userId
+      const userId = this.getUserId();
+
+      if (!userId) {
+        this.$message.warning('用户信息异常，请重新登录！');
+        localStorage.clear();
+        sessionStorage.clear();
+        this.$router.replace('/');
+        return;
+      }
+
       // 1. 获取用户基本信息
       this.getRequest(`/sysUser/user?userId=${userId}`).then(resp => {
         if (resp.data.code === 200) {
@@ -1556,8 +1719,8 @@ export default {
           this.$message.error("获取用户信息失败!");
         }
       }).catch(error => {
-        console.error('无响应:', error);
-        this.$message.error('获取用户信息失败');
+        console.error('获取用户信息失败:', error);
+        this.$message.error('获取用户信息失败，请重新登录');
       });
     },
     //登出处理
@@ -1602,7 +1765,7 @@ export default {
       }).catch(() => this.$message.error('下载失败'));
     },
 
-// 下载费用单图片
+    // 下载费用单图片
     downloadBillingImage() {
       const dom = this.$refs.billingContent;
       if (!dom) {
@@ -1618,7 +1781,7 @@ export default {
       }).catch(() => this.$message.error('下载失败'));
     },
 
-// 下载用药单图片
+    // 下载用药单图片
     downloadMedicationImage() {
       const dom = this.$refs.medicationContent;
       if (!dom) {
@@ -1638,12 +1801,14 @@ export default {
 </script>
 
 <style scoped>
+/* 表单项边框样式 */
 .form-item-border {
   border: 1px solid #dcdfe6;
   padding: 10px;
   border-radius: 4px;
   margin-bottom: 10px;
 }
+/* 页面背景样式 */
 .page-background {
   display: flex; /*设置为弹性容器*/
   flex-direction: column; /*主轴设置为垂直方向*/
@@ -1654,14 +1819,9 @@ export default {
   background-size: 100% 100%; /*图片高宽100%填充容器*/
   background-attachment: fixed; /*固定背景*/
 
-  /*width: 1500px;
-  height: 1500px;
-  padding: 20px;*/
   /*容器大小*/
   width: 98vw;
   height: 99vh;
-
-
 
   .app-main-wrap {
     flex: 1; /* 让子容器占据剩余的可用空间 */
@@ -1705,11 +1865,70 @@ export default {
     }
   }
 
-  /* 新增样式 */
+  /* 右上角用户下拉菜单样式 */
   .top-right-dropdown {
     position: absolute;
     top: 20px;
     right: 20px;
   }
+}
+</style>
+
+
+<style>
+/* 灰色禁用按钮样式：实心灰色、不可点击、鼠标禁用 */
+.disabled-gray-btn {
+background-color: #c0c4cc !important;
+border-color: #c0c4cc !important;
+color: #fff !important;
+cursor: not-allowed !important;
+opacity: 1 !important; /* 不透明 */
+}
+/* 禁用状态 hover 不变色 */
+.disabled-gray-btn:hover {
+background-color: #c0c4cc !important;
+border-color: #c0c4cc !important;
+color: #fff !important;
+}
+</style>
+
+
+/* ====================== 大锁图标样式 ====================== */
+<style>
+.big-lock-icon {
+  font-size: 40px !important;
+  transition: all 0.3s ease;
+  cursor: pointer; /* 图标本身也设为手型 */
+}
+.lock-closed .big-lock-icon {
+  color: #f56c6c;
+}
+.lock-closed:hover .big-lock-icon {
+  transform: scale(1.2);
+}
+.lock-opened .big-lock-icon {
+  color: #67c23a;
+  opacity: 0.9;
+  /* 去掉了 cursor: not-allowed */
+  transform: rotate(15deg);
+}
+
+/* 强制覆盖 Element UI 禁用按钮的光标样式 */
+.lock-btn.el-button[disabled] {
+  cursor: pointer !important; /* 永远显示手型 */
+  pointer-events: auto !important; /* 确保可点击 */
+}
+
+.lock-btn{
+  outline: none !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  cursor: pointer !important; /* 按钮本身也设为手型 */
+}
+.lock-btn:focus, .lock-btn:hover{
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
 }
 </style>

@@ -15,7 +15,6 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * 验证码校验器
@@ -49,8 +48,11 @@ public class CaptchaFilter extends OncePerRequestFilter {
             } catch (CaptchaException e) {
                 // 接收抛出的错误信息并交给登录失败处理器
                 loginFailureHandler.onAuthenticationFailure(httpServletRequest, httpServletResponse, e);
+                httpServletResponse.flushBuffer();
+                return;
             }
         }
+
         filterChain.doFilter(httpServletRequest, httpServletResponse);
     }
 
@@ -58,13 +60,13 @@ public class CaptchaFilter extends OncePerRequestFilter {
     private void validate(HttpServletRequest httpServletRequest) {
         String code = CommonUtil.getStringBodyParameterFromRequest(httpServletRequest,"code");
         String key = CommonUtil.getStringBodyParameterFromRequest(httpServletRequest,"userKey");
-        //System.out.println(code);
-        //System.out.println(key);
+
         if (StringUtils.isBlank(code) || StringUtils.isBlank(key)) {
             throw new CaptchaException("验证码错误");
         }
 
-        if (!code.equals(redisUtil.hget(Const.CAPTCHA_KEY, key))) {
+        Object cacheCode = redisUtil.hget(Const.CAPTCHA_KEY, key);
+        if (cacheCode == null || !code.equalsIgnoreCase(cacheCode.toString())) {
             throw new CaptchaException("验证码错误");
         }
 
